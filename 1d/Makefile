@@ -74,7 +74,7 @@ ifeq ($(BENCH_FINE),T)
 	MACROS+= -DBENCHMARK_FINE_GRAIN=1
 endif
 
-OBJS = constants.o fftw_mod_wtype.o lattice.o random_field.o equations.o yoshida.o
+OBJS = constants.o fftw_mod_wtype.o lattice.o random_field.o initial_conditions.o equations.o yoshida.o
 OBJS_OO = constants.o fftw_mod_wtype.o random_field.o gpe-model.o eom-w-model.o integrator.o
 
 gp: %: $(OBJS) evolve.o
