@@ -11,13 +11,17 @@ module Equations
   integer, parameter :: n_terms = 5 
 
   real(dl) :: nu, g_c, g
+  real(dl) :: mu
   
 contains
 
-  subroutine initialise_fields(this)
-    type(Lattice), intent(inout) :: this
-  end subroutine initialise_fields
-  
+  subroutine set_model_parameters(g_,gc_,nu_,mu_)
+    real(dl), intent(in) :: g_, gc_, nu_, mu_
+
+    g = g_; g_c = gc_; nu = nu_
+    mu = mu_ - 4.*nu_  ! This should probably be tuned depending on the situation
+  end subroutine set_model_parameters
+   
   subroutine split_equations(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -107,19 +111,22 @@ contains
 
     integer :: i_
     integer :: n
-    real(dl), dimension(1:this%nfld) :: g
+    real(dl), dimension(1:this%nfld) :: g_loc
+    real(dl) :: mu_loc
     real(dl) :: g_cur
-    real(dl), dimension(1:this%nlat) :: rho
+    real(dl), dimension(1:this%nlat) :: phase_shift
     
-    g = 1._dl  ! Adjust model parameter
+    g_loc = g; mu_loc = mu
     n = this%nlat
     
     do i_ = 1,this%nfld
-       g_cur = g(i_)
-       rho = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
+       g_cur = g_loc(i_)
+       phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
+       phase_shift = (g_cur*phase_shift - mu_loc)*dt
+       
        this%tPair%realSpace = this%psi(XIND,2,i_)
-       this%psi(XIND,2,i_) = cos(g_cur*rho*dt)*this%psi(XIND,2,i_) - sin(g_cur*rho*dt)*this%psi(XIND,1,i_)
-       this%psi(XIND,1,i_) = cos(g_cur*rho*dt)*this%psi(XIND,1,i_) + sin(g_cur*rho*dt)*this%tPair%realSpace(XIND)
+       this%psi(XIND,2,i_) = cos(phase_shift)*this%psi(XIND,2,i_) - sin(phase_shift)*this%psi(XIND,1,i_)
+       this%psi(XIND,1,i_) = cos(phase_shift)*this%psi(XIND,1,i_) + sin(phase_shift)*this%tPair%realSpace(XIND)
     enddo
   end subroutine evolve_potential
 
@@ -128,13 +135,14 @@ contains
     real(dl), intent(in) :: dt
 
     integer :: i_, n
-    real(dl) :: g_c, nu
+    real(dl) :: gc_loc, nu_loc
     real(dl), dimension(1:this%nlat) :: rho
     integer :: fld_ind, cross_ind
 
     n = this%nlat
     fld_ind = 1; cross_ind = 2
-    g_c = 0._dl; nu = 0.01
+    nu_loc = nu
+    gc_loc = g_c
 
     rho = this%psi(XIND,1,fld_ind)**2 + this%psi(XIND,2,fld_ind)**2
 
@@ -147,13 +155,14 @@ contains
     real(dl), intent(in) :: dt
 
     integer :: i_, n
-    real(dl) :: g_c, nu
+    real(dl) :: gc_loc, nu_loc
     real(dl), dimension(1:this%nlat) :: rho
     integer :: fld_ind, cross_ind
 
     n = this%nlat
     fld_ind = 2; cross_ind = 1
-    g_c = 0._dl; nu = 0.01
+    nu_loc = nu
+    gc_loc = g_c
 
     rho = this%psi(XIND,1,fld_ind)**2 + this%psi(XIND,2,fld_ind)**2
 
