@@ -9,7 +9,7 @@ module Equations
 
 !  integer, parameter :: n_terms = 3
 !  integer, parameter :: n_terms = 5 
-  integer, parameter :: n_terms = 4
+  integer, parameter :: n_terms = 2
   
   real(dl) :: nu, g_c, g
   real(dl) :: mu
@@ -20,7 +20,7 @@ contains
     real(dl), intent(in) :: g_, gc_, nu_, mu_
 
     g = g_; g_c = gc_; nu = nu_
-    mu = mu_ - 4.*nu_  ! This needs to be tuned depending on the situation
+    mu = mu_
   end subroutine set_model_parameters
    
   subroutine split_equations(this,dt,term)
@@ -31,13 +31,13 @@ contains
     select case (term)
 !#ifdef MERGE_GRADE
     case(1)
-       call evolve_potential(this,dt)
-    case(2)
        call evolve_gradient_full(this,dt)
-    case(3)
-       call evolve_nu_1(this,dt)
-    case(4)
-       call evolve_nu_2(this,dt)
+    case(2)
+       call evolve_potential(this,dt)
+!    case(3)
+!       call evolve_nu_1(this,dt)
+!    case(4)
+!       call evolve_nu_2(this,dt)
 !#endif
 #ifdef SPLIT5
     case (1)
@@ -46,14 +46,16 @@ contains
        call evolve_gradient_imag(this,dt)
     case(3)
        call evolve_potential(this,dt)
-    case(4)
-       call evolve_nu_1(this,dt)
-    case(5)
-       call evolve_nu_2(this,dt)
+!    case(4)
+!       call evolve_nu_1(this,dt)
+!    case(5)
+!       call evolve_nu_2(this,dt)
 #endif
     end select
   end subroutine split_equations
 
+  !>@brief
+  !> O(2) symplectic step with operator fusion
   subroutine symp_o2_step(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt, w1, w2
@@ -70,27 +72,27 @@ contains
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
   end subroutine symp_o2_step
 
-  ! R'' + (k^4/4)R = 0
-  ! I'' + (k^4/4)I = 0
-  ! R' = (k^2/2) I = wI
-  ! I' = -(k^2/2) R = -wI
-  ! R(t) = R(0)*cos(0.5*k**2*dt) + 0.5*k**2*R'(0)*sin(0.5*k**2*dt)
-  ! R(t) = Ae^iwt + B e^-iwt = (A+B)cos(wt) + i(A-B)sin(wt)
-  !      = R(0)cos(wt) + i(-i)I(0)sin(wt)
-  !      = R(0)cos(wt) + I(0)sin(wt)
-  ! R(0) = A+B
-  ! R'(0) = iw*(A-B) = w I(0)
-  ! R(0) + iI(0) = A + B - (A-B) = 2B
-  !
-  ! I(t) = Ae^iwt + Be^-iwt
-  ! I(0) = A + B
-  ! I'(0) = iw(A-B) = -wR(0)
-  ! I(t) = (A+B)*cos(wt) + i(A-B)sin(wt)
-  !      = I(0)cos(wt) - R(0)sin(wt)
-
-  ! Ok, there's something weird with the required omega in here used to match to the other method
-  ! No, it's just a problem with using my Yoshida scheme with only one term
-  
+  !>@brief
+  !> Solve the equation:
+  !> \f[
+  !>     i\dot{\psi}_i = -\frac{1}{2}\nabla^2\psi_i
+  !> \f]
+  !> We can alternatively write this as
+  !> \f[
+  !>    \ddot{R} + \frac{k^4}{4}R = 0
+  !>    \ddot{I} + \frac{k^4}{4}I = 0
+  !>    \dot{R} = \frac{k^2}{2}I
+  !>    \dot{I} = -\frac{k^2}{2}R
+  !> \f]
+  !> with solutions
+  !> \f[
+  !>   R(t) = R(0)\cos(\omega t) + I(0)\sin(\omega t)
+  !>   I(t) = I(0)\cos(\omega t) - R(0)\sin(\omega t)
+  !> \f]
+  !> where
+  !> \f[
+  !>   \omega = \frac{k^2}{2}
+  !> \f]
   subroutine evolve_gradient_full(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
