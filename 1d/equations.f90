@@ -35,9 +35,9 @@ contains
     case(3)
        call evolve_potential(this,dt)
     case(4)
-       call evolve_cross_1(this,dt)
+       call evolve_nu_1(this,dt)
     case(5)
-       call evolve_cross_2(this,dt)
+       call evolve_nu_2(this,dt)
     end select
   end subroutine split_equations
 
@@ -77,33 +77,64 @@ contains
     enddo
   end subroutine evolve_gradient
 
+  ! Combine this with the next one, and just put a parameter in to specify the indices
   subroutine evolve_gradient_real(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
+    integer :: fld_ind, grad_ind
     integer :: i_, n
 
+    fld_ind = 1; grad_ind = 2
     n = this%nlat
-    do i_=1,this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
+    do i_ = 1,this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_1d_wtype(this%tPair, this%dk)
-       this%psi(XIND,1,i_) = this%psi(XIND,1,i_) - 0.5_dl*this%tPair%realSpace(XIND)*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) - 0.5_dl*this%tPair%realSpace(XIND)*dt
     enddo
   end subroutine evolve_gradient_real
 
+  ! Combine this one with the above, and just put in the indices
   subroutine evolve_gradient_imag(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
+    integer :: fld_ind, grad_ind
     integer :: i_, n
 
+    fld_ind = 2; grad_ind = 1
     n = this%nlat
     do i_=1,this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+       this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_1d_wtype(this%tPair, this%dk)
-       this%psi(XIND,2,i_) = this%psi(XIND,2,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
     enddo
   end subroutine evolve_gradient_imag
+
+  ! Combined evolution for the above
+  subroutine evolve_gradient_single(this,dt,type)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: type
+
+    integer :: fld_ind, grad_ind
+    integer :: i_, n
+
+    select case(type)
+    case(1)
+       fld_ind = 1; grad_ind = 2
+    case(2)
+       fld_ind = 2; grad_ind = 1
+    end select
+       
+    n = this%nlat
+    
+    do i_=1,this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
+    enddo
+  end subroutine evolve_gradient_single
   
   subroutine evolve_potential(this,dt)
     type(Lattice), intent(inout) :: this
@@ -130,7 +161,8 @@ contains
     enddo
   end subroutine evolve_potential
 
-  subroutine evolve_cross_1(this,dt)
+  ! Combine this into a single subroutine with the next call
+  subroutine evolve_nu_1(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
@@ -148,9 +180,9 @@ contains
 
     this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu*this%psi(XIND,2,cross_ind)*dt
     this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu*this%psi(XIND,1,cross_ind)*dt
-  end subroutine evolve_cross_1
+  end subroutine evolve_nu_1
 
-  subroutine evolve_cross_2(this,dt)
+  subroutine evolve_nu_2(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
@@ -168,6 +200,6 @@ contains
 
     this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu*this%psi(XIND,2,cross_ind)*dt
     this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu*this%psi(XIND,1,cross_ind)*dt
-  end subroutine evolve_cross_2
-  
+  end subroutine evolve_nu_2
+
 end module Equations
