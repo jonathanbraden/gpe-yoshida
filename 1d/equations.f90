@@ -9,7 +9,7 @@ module Equations
 
 !  integer, parameter :: n_terms = 3
 !  integer, parameter :: n_terms = 5 
-  integer, parameter :: n_terms = 1
+  integer, parameter :: n_terms = 4
   
   real(dl) :: nu, g_c, g
   real(dl) :: mu
@@ -29,11 +29,16 @@ contains
     integer, intent(in) :: term
 
     select case (term)
+!#ifdef MERGE_GRADE
     case(1)
+       call evolve_potential(this,dt)
+    case(2)
        call evolve_gradient_full(this,dt)
-!       call evolve_gradient_real(this,dt)
-!    case(2)
-!       call evolve_gradient_imag(this,dt)
+    case(3)
+       call evolve_nu_1(this,dt)
+    case(4)
+       call evolve_nu_2(this,dt)
+!#endif
 #ifdef SPLIT5
     case (1)
        call evolve_gradient_real(this,dt)
@@ -67,10 +72,25 @@ contains
 
   ! R'' + (k^4/4)R = 0
   ! I'' + (k^4/4)I = 0
-  ! R' = (k^2/2) I
-  ! I' = -(k^2/2) R
+  ! R' = (k^2/2) I = wI
+  ! I' = -(k^2/2) R = -wI
   ! R(t) = R(0)*cos(0.5*k**2*dt) + 0.5*k**2*R'(0)*sin(0.5*k**2*dt)
+  ! R(t) = Ae^iwt + B e^-iwt = (A+B)cos(wt) + i(A-B)sin(wt)
+  !      = R(0)cos(wt) + i(-i)I(0)sin(wt)
+  !      = R(0)cos(wt) + I(0)sin(wt)
+  ! R(0) = A+B
+  ! R'(0) = iw*(A-B) = w I(0)
+  ! R(0) + iI(0) = A + B - (A-B) = 2B
+  !
+  ! I(t) = Ae^iwt + Be^-iwt
+  ! I(0) = A + B
+  ! I'(0) = iw(A-B) = -wR(0)
+  ! I(t) = (A+B)*cos(wt) + i(A-B)sin(wt)
+  !      = I(0)cos(wt) - R(0)sin(wt)
 
+  ! Ok, there's something weird with the required omega in here used to match to the other method
+  ! No, it's just a problem with using my Yoshida scheme with only one term
+  
   subroutine evolve_gradient_full(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -93,15 +113,15 @@ contains
        do j=1,nn
           omega = 0.5_dl*(j-1)**2*this%dk**2
           this%tPair%specSpace(j) = cos(omega*dt)*fk_real(j) &
-               + omega**2*fk_imag(j)*sin(omega*dt) ! Test this line, is there an omega^2
+               + fk_imag(j)*sin(omega*dt) 
        enddo
        call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
        this%psi(XIND,1,i_) = this%tPair%realSpace(XIND) / dble(n)
        
        do j=1,nn
-          omega = 0.5_dl*(j-1)**2*this%dk**2
+          omega = 0.5_dl*(j-1)**2*this%dk**2 
           this%tPair%specSpace(j) = cos(omega*dt)*fk_imag(j) & 
-               - omega**2*fk_imag(j)*sin(omega*dt)  ! Test this line
+               - fk_real(j)*sin(omega*dt) 
        enddo
        call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
        this%psi(XIND,2,i_) = this%tPair%realSpace(XIND) / dble(n)
