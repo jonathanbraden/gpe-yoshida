@@ -57,23 +57,48 @@ contains
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
   end subroutine symp_o2_step
 
+  ! R'' + (k^4/4)R = 0
+  ! I'' + (k^4/4)I = 0
+  ! R' = (k^2/2) I
+  ! I' = -(k^2/2) R
+  ! R(t) = R(0)*cos(0.5*k**2*dt) + 0.5*k**2*R'(0)*sin(0.5*k**2*dt)
+  ! Same for I
+  ! Check the I' relationship
+
   subroutine evolve_gradient_full(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_, n
-
-    n = this%nlat
+    integer :: i_, n, j, nn
+    real(dl) :: dk, omega
+    complex(dl), dimension(1:this%nlat/2+1) :: fk_real, fk_imag
+    
+    n = this%nlat; nn = this%nlat/2+1
+    dk = this%dk
     do i_ = 1,this%nfld
-       this%tPair%realSpace(1:n) = this%psi(:,1,i_)
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
        call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
-       ! Do multiplication
-       call fftw_execute_dft_c2r(this%tPair%planf, this%tPair%specSpace, this%tPair%realSpace)
-       
-       this%tPair%realSpace(1:n) = this%psi(:,2,i_)
+       fk_real = this%tPair%specSpace
+       this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
        call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
-       ! Do multiplication
-       call fftw_execute_dft_c2r(this%tPair%planf, this%tPair%specSpace, this%tPair%realSpace)
+       fk_imag = this%tPair%specSpace
+
+       ! Now rotate the Fourier modes
+       do j=1,nn
+          omega = 0.5_dl*(j-1)**2*this%dk**2
+          this%tPair%specSpace(j) = cos(omega*dt)*fk_real(j) + 0._dl ! Fill in second part &
+          ! + omega**2*fk_imag(j)*sin(omega*dt)
+       enddo
+       call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
+       this%psi(XIND,1,i_) = this%tPair%realSpace(XIND)
+
+       do j=1,nn
+          omega = 0.5_dl*(j-1)**2*this%dk**2
+          this%tPair%specSpace(j) = cos(omega*dt)*fk_imag(j) + 0._dl ! Fill in second part &
+          ! - omega**2*fk_imag(j)*sin(omega*dt)
+       enddo
+       call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
+       this%psi(XIND,2,i_) = this%tPair%realSpace(XIND)
     enddo
   end subroutine evolve_gradient_full
 
@@ -217,8 +242,12 @@ contains
     phase_shift = (this%psi(XIND,1,cross_ind)**2 + this%psi(XIND,2,cross_ind)**2)*g_c*dt
 
     this%tPair%realSpace = this%psi(XIND,2,fld_ind)
-    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) - sin(phase_shift)*this%psi(XIND,1,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
-    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) + sin(phase_shift)*this%tPair%realSpace(XIND) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) &
+                             - sin(phase_shift)*this%psi(XIND,1,fld_ind) &
+                             + nu_loc*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) &
+                              + sin(phase_shift)*this%tPair%realSpace(XIND) &
+                              - nu_loc*this%psi(XIND,2,cross_ind)*dt
   end subroutine evolve_cross_1
 
   subroutine evolve_cross_2(this,dt)
@@ -238,8 +267,12 @@ contains
     phase_shift = (this%psi(XIND,1,cross_ind)**2 + this%psi(XIND,2,cross_ind)**2)*g_c*dt
 
     this%tPair%realSpace = this%psi(XIND,2,fld_ind)
-    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) - sin(phase_shift)*this%psi(XIND,1,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
-    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) + sin(phase_shift)*this%tPair%realSpace(XIND) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) &
+                             - sin(phase_shift)*this%psi(XIND,1,fld_ind) &
+                             + nu_loc*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) &
+                             + sin(phase_shift)*this%tPair%realSpace(XIND) &
+                             - nu_loc*this%psi(XIND,2,cross_ind)*dt
   end subroutine evolve_cross_2
     
     
