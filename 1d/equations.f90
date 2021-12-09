@@ -6,10 +6,11 @@ module Equations
   use Simulation
 
   implicit none
-  
-!  integer, parameter :: n_terms = 3
-  integer, parameter :: n_terms = 5 
 
+!  integer, parameter :: n_terms = 3
+!  integer, parameter :: n_terms = 5 
+  integer, parameter :: n_terms = 1
+  
   real(dl) :: nu, g_c, g
   real(dl) :: mu
   
@@ -19,7 +20,7 @@ contains
     real(dl), intent(in) :: g_, gc_, nu_, mu_
 
     g = g_; g_c = gc_; nu = nu_
-    mu = mu_ - 4.*nu_  ! This should probably be tuned depending on the situation
+    mu = mu_ - 4.*nu_  ! This needs to be tuned depending on the situation
   end subroutine set_model_parameters
    
   subroutine split_equations(this,dt,term)
@@ -28,6 +29,12 @@ contains
     integer, intent(in) :: term
 
     select case (term)
+    case(1)
+       call evolve_gradient_full(this,dt)
+!       call evolve_gradient_real(this,dt)
+!    case(2)
+!       call evolve_gradient_imag(this,dt)
+#ifdef SPLIT5
     case (1)
        call evolve_gradient_real(this,dt)
     case(2)
@@ -38,6 +45,7 @@ contains
        call evolve_nu_1(this,dt)
     case(5)
        call evolve_nu_2(this,dt)
+#endif
     end select
   end subroutine split_equations
 
@@ -62,8 +70,6 @@ contains
   ! R' = (k^2/2) I
   ! I' = -(k^2/2) R
   ! R(t) = R(0)*cos(0.5*k**2*dt) + 0.5*k**2*R'(0)*sin(0.5*k**2*dt)
-  ! Same for I
-  ! Check the I' relationship
 
   subroutine evolve_gradient_full(this,dt)
     type(Lattice), intent(inout) :: this
@@ -75,6 +81,7 @@ contains
     
     n = this%nlat; nn = this%nlat/2+1
     dk = this%dk
+    
     do i_ = 1,this%nfld
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
        call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
@@ -82,27 +89,31 @@ contains
        this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
        call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
        fk_imag = this%tPair%specSpace
-
-       ! Now rotate the Fourier modes
+       
        do j=1,nn
           omega = 0.5_dl*(j-1)**2*this%dk**2
-          this%tPair%specSpace(j) = cos(omega*dt)*fk_real(j) + 0._dl ! Fill in second part &
-          ! + omega**2*fk_imag(j)*sin(omega*dt)
+          this%tPair%specSpace(j) = cos(omega*dt)*fk_real(j) &
+               + omega**2*fk_imag(j)*sin(omega*dt) ! Test this line, is there an omega^2
        enddo
        call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
-       this%psi(XIND,1,i_) = this%tPair%realSpace(XIND)
-
+       this%psi(XIND,1,i_) = this%tPair%realSpace(XIND) / dble(n)
+       
        do j=1,nn
           omega = 0.5_dl*(j-1)**2*this%dk**2
-          this%tPair%specSpace(j) = cos(omega*dt)*fk_imag(j) + 0._dl ! Fill in second part &
-          ! - omega**2*fk_imag(j)*sin(omega*dt)
+          this%tPair%specSpace(j) = cos(omega*dt)*fk_imag(j) & 
+               - omega**2*fk_imag(j)*sin(omega*dt)  ! Test this line
        enddo
        call fftw_execute_dft_c2r(this%tPair%planb, this%tPair%specSpace, this%tPair%realSpace)
-       this%psi(XIND,2,i_) = this%tPair%realSpace(XIND)
+       this%psi(XIND,2,i_) = this%tPair%realSpace(XIND) / dble(n)
     enddo
   end subroutine evolve_gradient_full
 
-  ! Combine this with the next one, and just put a parameter in to specify the indices
+  !>@brief
+  !> Evolve the real part of the fields using the Laplacian term
+  !
+  !> \f[
+  !>    \dot{\psi}_i^{\rm R} = -\frac{1}{2}\nabla^2\psi_i^{\rm I}
+  !> ]\f
   subroutine evolve_gradient_real(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -119,7 +130,12 @@ contains
     enddo
   end subroutine evolve_gradient_real
 
-  ! Combine this one with the above, and just put in the indices
+  !>@brief
+  !> Evolve the imaginary part of the fields using the Laplacian term
+  !
+  !> \f[
+  !>    \dot{\psi}_i^{\rm I} = \frac{1}{2}\nabla^2\psi_i^{\rm R}
+  !> \f]
   subroutine evolve_gradient_imag(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -136,7 +152,12 @@ contains
     enddo
   end subroutine evolve_gradient_imag
 
-  ! Combined evolution for the above
+  !>@brief
+  !> Combines evolve_gradient_real and evolve_gradient_imag into a single call
+  !>
+  !> type selects which fields to evolve
+  !>  type = 1 evolves the real parts
+  !>  type = 2 evolves the imaginary parts
   subroutine evolve_gradient_single(this,dt,type)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -144,12 +165,15 @@ contains
 
     integer :: fld_ind, grad_ind
     integer :: i_, n
+    real(dl) :: sig
 
     select case(type)
     case(1)
        fld_ind = 1; grad_ind = 2
+       sig = -1._dl
     case(2)
        fld_ind = 2; grad_ind = 1
+       sig = 1._dl
     end select
        
     n = this%nlat
@@ -157,10 +181,16 @@ contains
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_1d_wtype(this%tPair, this%dk)
-       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + 0.5_dl*sig*this%tPair%realSpace(XIND)*dt
     enddo
   end subroutine evolve_gradient_single
-  
+
+  !>@brief
+  !> Evolve the 2->2 self-scattering part of the equations
+  !>
+  !> \f[
+  !>    i\dot{\psi}_i = g\left|\psi_i\right|^2\psi_i - \mu\psi_i
+  !> \f]
   subroutine evolve_potential(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
