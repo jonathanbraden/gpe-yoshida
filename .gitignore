@@ -1,3 +1,11 @@
+# Fortran files
+*.o
+*.mod
+
+# Binary output
+*.bin
+*.pdf
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
