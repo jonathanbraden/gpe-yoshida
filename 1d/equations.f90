@@ -57,7 +57,7 @@ contains
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
   end subroutine symp_o2_step
 
-  subroutine evolve_gradient(this,dt)
+  subroutine evolve_gradient_full(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
@@ -75,7 +75,7 @@ contains
        ! Do multiplication
        call fftw_execute_dft_c2r(this%tPair%planf, this%tPair%specSpace, this%tPair%realSpace)
     enddo
-  end subroutine evolve_gradient
+  end subroutine evolve_gradient_full
 
   ! Combine this with the next one, and just put a parameter in to specify the indices
   subroutine evolve_gradient_real(this,dt)
@@ -178,8 +178,8 @@ contains
 
     rho = this%psi(XIND,1,fld_ind)**2 + this%psi(XIND,2,fld_ind)**2
 
-    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu*this%psi(XIND,2,cross_ind)*dt
-    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
   end subroutine evolve_nu_1
 
   subroutine evolve_nu_2(this,dt)
@@ -196,10 +196,51 @@ contains
     nu_loc = nu
     gc_loc = g_c
 
-    rho = this%psi(XIND,1,fld_ind)**2 + this%psi(XIND,2,fld_ind)**2
-
-    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu*this%psi(XIND,2,cross_ind)*dt
-    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
   end subroutine evolve_nu_2
 
+  subroutine evolve_cross_1(this,dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i_, n
+    real(dl) :: gc_loc, nu_loc
+    real(dl), dimension(1:this%nlat) :: phase_shift
+    integer :: fld_ind, cross_ind
+
+    n = this%nlat
+    fld_ind = 1; cross_ind = 2
+
+    nu_loc = nu; gc_loc = g_c
+
+    phase_shift = (this%psi(XIND,1,cross_ind)**2 + this%psi(XIND,2,cross_ind)**2)*g_c*dt
+
+    this%tPair%realSpace = this%psi(XIND,2,fld_ind)
+    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) - sin(phase_shift)*this%psi(XIND,1,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) + sin(phase_shift)*this%tPair%realSpace(XIND) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+  end subroutine evolve_cross_1
+
+  subroutine evolve_cross_2(this,dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i_, n
+    real(dl) :: gc_loc, nu_loc
+    real(dl), dimension(1:this%nlat) :: phase_shift
+    integer :: fld_ind, cross_ind
+
+    n = this%nlat
+    fld_ind = 2; cross_ind = 1
+
+    nu_loc = nu; gc_loc = g_c
+
+    phase_shift = (this%psi(XIND,1,cross_ind)**2 + this%psi(XIND,2,cross_ind)**2)*g_c*dt
+
+    this%tPair%realSpace = this%psi(XIND,2,fld_ind)
+    this%psi(XIND,2,fld_ind) = cos(phase_shift)*this%psi(XIND,2,fld_ind) - sin(phase_shift)*this%psi(XIND,1,fld_ind) + nu_loc*this%psi(XIND,1,cross_ind)*dt
+    this%psi(XIND,1,fld_ind) = cos(phase_shift)*this%psi(XIND,1,fld_ind) + sin(phase_shift)*this%tPair%realSpace(XIND) - nu_loc*this%psi(XIND,2,cross_ind)*dt
+  end subroutine evolve_cross_2
+    
+    
 end module Equations
