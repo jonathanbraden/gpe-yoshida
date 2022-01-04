@@ -75,13 +75,9 @@ ifeq ($(BENCH_FINE),T)
 endif
 
 OBJS = constants.o fftw_mod_wtype.o lattice.o random_field.o initial_conditions.o equations.o yoshida.o
-OBJS_OO = constants.o fftw_mod_wtype.o random_field.o gpe-model.o eom-w-model.o integrator.o
 
 gp: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-1d evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
-
-#gp-oo: %: $(OBJS_OO) evolve-gp-w-model.o
-#	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-1d evolve-gp-w-model.o $(OBJS_OO) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
 
 %.o: %.f90
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -c $< -o $@ $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)

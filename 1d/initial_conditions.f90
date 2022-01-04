@@ -5,7 +5,7 @@ module Initial_Conditions
 
 contains
   
-    subroutine imprint_bright_soliton(this,eta,kappa)
+  subroutine imprint_bright_soliton(this,eta,kappa)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: eta, kappa
 
@@ -27,12 +27,10 @@ contains
     real(dl) :: rho
 
     rho = 1._dl
-    
-    this%psi(:,1,1) = rho**0.5
-    this%psi(:,2,1) = 0._dl
-    
-    this%psi(:,1,2) = this%psi(:,1,1)*cos(phase) - this%psi(:,2,1)*sin(phase)
-    this%psi(:,2,2) = this%psi(:,2,1)*cos(phase) + this%psi(:,2,1)*sin(phase)
+
+    this%psi(:,1,1) = rho**0.5; this%psi(:,1,2) = 0._dl
+    this%psi(:,1,2) = this%psi(:,1,1)*cos(phase)
+    this%psi(:,2,2) = this%psi(:,1,2)*sin(phase)
   end subroutine imprint_mean_relative_phase
 
     subroutine imprint_sine(this, wave_num, amp)
