@@ -1,8 +1,13 @@
 #define XIND 1:n
+#define PERIODIC 1
 
 module Equations
   use constants, only : dl, twopi
+#if defined(PERIODIC)
   use fftw3
+#elif defined(INFINITE)
+  use Fast_Cheby
+#endif
   use Simulation
 
   implicit none
@@ -35,15 +40,27 @@ contains
   ! A bit wasteful having to pass in xGrid
   ! Currently a temporary fix since the grid isn't stored in the Fourier
   ! transform pairs if it's periodic
-  subroutine initialize_trap_potential(this, xGrid, amp)
+  subroutine initialize_trap_potential(this, amp)
     type(Lattice), intent(inout) :: this
-    real(dl), dimension(1:this%nLat) :: xGrid
     real(dl), intent(in) :: amp
     
     integer :: i
     
     allocate( v_trap(1:this%nlat) )
-    v_trap = -amp*cos( twopi*xGrid/this%lSize )
+    v_trap = 0._dl
+    !v_trap = -amp*cos( twopi*xGrid/this%lSize )
+    !do i=1,this%nlat
+    !   v_trap = min(amp*0.5*xGrid**2,10.)
+    !enddo
+
+    ! Posch-Teller
+    v_trap = -1._dl/cosh(this%xGrid)**2
+
+    open(unit=99,file='trap.dat')
+    do i=1,this%nlat
+       write(99,*) this%xGrid(i), v_trap(i)
+    enddo
+    close(99)
   end subroutine initialize_trap_potential
   
   subroutine split_equations(this,dt,term)
@@ -55,11 +72,24 @@ contains
     case(1)
        call evolve_gradient_trap_real(this,dt)
     case(2)
-       call evolve_potential(this,dt)
+       !call evolve_potential(this,dt)
     case(3)
        call evolve_gradient_trap_imag(this,dt)
     end select
   end subroutine split_equations
+
+  subroutine split_equations_schrodinger(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+
+    select case (term)
+    case (1)
+       call evolve_gradient_trap_real(this,dt)
+    case(2)
+       call evolve_gradient_trap_imag(this,dt)
+    end select
+  end subroutine split_equations_schrodinger
   
   subroutine split_equations_nlse_w_trap(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -124,24 +154,6 @@ contains
        call evolve_gradient_imag(this,dt)
     end select
   end subroutine split_equations_nlse_3_term
-  
-  !>@brief
-  !> O(2) symplectic step with operator fusion
-  subroutine symp_o2_step(this,dt,w1,w2)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt, w1, w2
-
-    integer :: i
-
-    do i=2,n_terms-1
-       call split_equations(this, 0.5_dl*w1*dt, i)
-    enddo
-    call split_equations(this, w1*dt, n_terms)
-    do i=n_terms-1,2,-1
-       call split_equations(this, 0.5_dl*w1*dt,i)
-    enddo
-    call split_equations(this,0.5_dl*(w1+w2)*dt,1)
-  end subroutine symp_o2_step
 
   !>@brief
   !> Solve the equation:
@@ -297,7 +309,8 @@ contains
     do i_ = 1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_1d_wtype(this%tPair, this%dk)
-       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + ( v_trap(XIND)*this%psi(XIND,grad_ind,i_) - 0.5_dl*this%tPair%realSpace(XIND) )*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_)  &
+            + ( v_trap(XIND)*this%psi(XIND,grad_ind,i_) - 0.5_dl*this%tPair%realSpace(XIND) )*dt
     enddo
   end subroutine evolve_gradient_trap_real
   
@@ -319,7 +332,7 @@ contains
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_1d_wtype(this%tPair, this%dk)
-       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + (v_trap(XIND)*this%psi(XIND,grad_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND) )*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + (-v_trap(XIND)*this%psi(XIND,grad_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND) )*dt
     enddo
   end subroutine evolve_gradient_trap_imag
   
@@ -509,6 +522,5 @@ contains
                              + sin(phase_shift)*this%tPair%realSpace(XIND) &
                              - nu_loc*this%psi(XIND,2,cross_ind)*dt
   end subroutine evolve_cross_2
-    
     
 end module Equations

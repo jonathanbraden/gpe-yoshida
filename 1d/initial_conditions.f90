@@ -4,6 +4,45 @@ module Initial_Conditions
   implicit none
 
 contains
+
+  subroutine imprint_gaussian(this, sig2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: sig2
+
+    integer :: i_
+
+    this%psi = 0._dl
+    do i_ = 1, this%nfld
+       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)
+    enddo
+  end subroutine imprint_gaussian
+
+  subroutine imprint_sech_eigen(this, m)
+    type(Lattice), intent(inout) :: this
+    integer, intent(in) :: m
+    integer :: i_
+
+    this%psi = 0._dl
+    do i_ = 1,this%nfld
+!       this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
+       !       this%psi(:,1,i_) = 1._dl-tanh(this%xGrid)**2
+       this%psi(:,1,i_) = tanh(this%xGrid)*sqrt(1._dl-tanh(this%xGrid)**2)
+    enddo
+  end subroutine imprint_sech_eigen
+  
+  !>@brief
+  !> TO DO : Write this
+  !> Will initialize a (smoothed) version of the tight-binding ground state
+  subroutine imprint_tight_binding_vac(this, pot, chem_pot)
+    type(Lattice), intent(inout) :: this
+    real(dl), dimension(1:this%nlat), intent(in) :: pot
+    real(dl), intent(in) :: chem_pot
+    
+    real(dl), dimension(1:this%nlat) :: profile
+
+    profile = 0._dl
+    where ( (chem_pot-pot) > 0. ) profile = sqrt(chem_pot - pot) ! Need to include g 
+  end subroutine imprint_tight_binding_vac
   
   subroutine imprint_bright_soliton(this,eta,kappa)
     type(Lattice), intent(inout) :: this
@@ -14,7 +53,7 @@ contains
     this%psi = 0._dl
 
     do i_=1,this%nlat
-       x = (i_-1)*this%dx - 0.5*this%lSize
+       x = this%xGrid(i_)
        this%psi(i_,1,1) = eta/cosh(eta*x)*cos(kappa*x)
        this%psi(i_,2,1) = eta/cosh(eta*x)*sin(kappa*x)
     enddo
@@ -33,7 +72,7 @@ contains
     this%psi(:,2,2) = this%psi(:,1,2)*sin(phase)
   end subroutine imprint_mean_relative_phase
 
-    subroutine imprint_sine(this, wave_num, amp)
+  subroutine imprint_sine(this, wave_num, amp)
     type(Lattice), intent(inout) :: this
     integer, intent(in) :: wave_num
     real(dl), intent(in) :: amp

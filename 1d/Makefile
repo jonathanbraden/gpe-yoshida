@@ -8,8 +8,6 @@ BENCH_FINE = F
 BLAS = T
 
 # Default FFTW Lib location
-#FFTW_DIR = /usr/local/fftw/fftw-3.3.4-gcc-5.1.0/
-#FFTW_DIR = $(HOME)/local/fftw-3.3.4/gcc-4.4.7/
 FFTW_DIR = /usr/local/
 FFTW_INC = -I$(FFTW_DIR)include/
 FFTW_LIB = -L$(FFTW_DIR)lib/
@@ -75,9 +73,13 @@ ifeq ($(BENCH_FINE),T)
 endif
 
 OBJS = constants.o fftw_mod_wtype.o lattice.o random_field.o initial_conditions.o equations.o yoshida.o
+OBJS_INF = constants.o fftw_mod_wtype.o fast_cheby.o random_field.o lattice.o initial_conditions.o equations_infinite.o yoshida.o
 
 gp: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-1d evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
+
+gp_inf: %: $(OBJS_INF) evolve_infinite.o
+	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-1d evolve_infinite.o $(OBJS_INF) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
 
 %.o: %.f90
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -c $< -o $@ $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)

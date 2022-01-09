@@ -1,4 +1,8 @@
 #define XIND 1:n
+#define INFINITE 1
+!#define BOUNDARIES 1
+
+! TO DO : Need to fix the boundary conditions to avoid exponential growth
 
 module Equations
   use constants, only : dl, twopi
@@ -36,24 +40,16 @@ contains
     integer :: i
 
     allocate( v_trap(1:this%nlat) )
-    v_trap = -0.5_dl*amp*xGrid**2/(1.+1.e-5*xGrid**2)
+    v_trap = 0._dl
+    !    v_trap = 0.5_dl*amp*xGrid**2/(1.+0.01*xGrid**2)
+    v_trap = -0.5_dl*amp*(amp+1._dl) / cosh(this%xGrid)**2
+
+    open(unit=99,file='trap.dat')
+    do i=1,this%nlat
+       write(99,*) this%xGrid(i), v_trap(i)
+    enddo
+    close(99)
   end subroutine initialize_trap_potential
-
-  subroutine symp_o2_step(this,dt,w1,w2)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt, w1, w2
-
-    integer :: i
-
-    do i=2,n_terms-1
-       call split_equations(this, 0.5_dl*w1*dt, i)
-    enddo
-    call split_equations(this, w1*dt, n_terms)
-    do i=n_terms-1,2,-1
-       call split_equations(this, 0.5_dl*w1*dt,i)
-    enddo
-    call split_equations(this,0.5_dl*(w1+w2)*dt,1
-  end subroutine symp_o2_step
   
   subroutine split_equations(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -64,12 +60,27 @@ contains
     case(1)
        call evolve_gradient_trap_real(this,dt)
     case(2)
-       call evolve_potential(this,dt)
+       call evolve_scattering_term(this,dt)
     case(3)
        call evolve_gradient_trap_imag(this,dt)
     end select
   end subroutine split_equations
 
+  ! Debug this, then use it to study 1,2, and 3 particle Schrodinger
+  ! See how decay rate changes with N
+  subroutine split_equations_schrodinger(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+
+    select case (term)
+    case(1)
+       call evolve_gradient_trap_real(this,dt)
+    case(2)
+       call evolve_gradient_trap_imag(this,dt)
+    end select
+  end subroutine split_equations_schrodinger
+  
   subroutine evolve_gradient_trap_real(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -78,11 +89,17 @@ contains
 
     fld_ind = 1; grad_ind = 2
     n = this%nlat
-    do i_1 = 1,this%nFld
+    do i_ = 1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_cheby_1d_mapped(this%tPair)
-       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + ( v_trap(XIND)*this%psi(XIND,grad_ind,i_) - 0.5_dl*this%tPair%realSpace(XIND) )*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_)   &
+            + ( v_trap(XIND)*this%psi(XIND,grad_ind,i_)        &
+            - 0.5_dl*this%tPair%realSpace(XIND) )*dt
     enddo
+    
+#ifdef BOUNDARIES
+    this%psi(1,:,:) = 0._dl; this%psi(this%nlat,:,:) = 0._dl
+#endif
   end subroutine evolve_gradient_trap_real
 
   !>@brief
@@ -103,8 +120,14 @@ contains
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,grad_ind,i_)
        call laplacian_cheby_1d_mapped(this%tPair)
-       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_) + (v_trap(XIND)*this%psi(XIND,grad_ind,i_) + 0.5_dl*this%tPair%realSpace(XIND) )*dt
+       this%psi(XIND,fld_ind,i_) = this%psi(XIND,fld_ind,i_)    &
+            - ( v_trap(XIND)*this%psi(XIND,grad_ind,i_)         &
+            - 0.5_dl*this%tPair%realSpace(XIND) )*dt
     enddo
+    
+#ifdef BOUNDARIES
+    this%psi(1,:,:) = 0._dl; this%psi(this%nlat,:,:) = 0._dl
+#endif
   end subroutine evolve_gradient_trap_imag
 
   !>@brief
@@ -113,7 +136,7 @@ contains
   !> \f[
   !>    i\dot{\psi}_i = g\left|\psi_i\right|^2\psi_i - \mu\psi_i
   !> \f]
-  subroutine evolve_potential(this,dt)
+  subroutine evolve_scattering_term(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
@@ -136,6 +159,10 @@ contains
        this%psi(XIND,2,i_) = cos(phase_shift)*this%psi(XIND,2,i_) - sin(phase_shift)*this%psi(XIND,1,i_)
        this%psi(XIND,1,i_) = cos(phase_shift)*this%psi(XIND,1,i_) + sin(phase_shift)*this%tPair%realSpace(XIND)
     enddo
-  end subroutine evolve_potential
+
+#ifdef BOUNDARIES
+    this%psi(1,:,:) = 0._dl; this%psi(this%nlat,:,:) = 0._dl
+#endif
+  end subroutine evolve_scattering_term
   
 end module Equations

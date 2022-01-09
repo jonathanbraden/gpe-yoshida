@@ -47,7 +47,6 @@ contains
     integer, intent(in) :: nstep
 
     call symp8(this,dt,nstep)
-    !call symp2(this,dt,nstep)
     this%time = this%time + dt*nstep
   end subroutine step_lattice
 
@@ -66,12 +65,23 @@ contains
     enddo    
   end subroutine yoshida_scheme
 
-!  subroutine split_equations(this,dt,term)
-!    type(Yoshida_Integrator), intent(in) :: this
-!    real(dl), intent(in) :: dt
-!    integer, intent(in) :: term
-!  end subroutine split_equations
+  !>@brief
+  !> Second order accurate symplectic step with fusion
+  subroutine symp_o2_step(this,dt,w1,w2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt, w1, w2
 
+    integer :: i
+
+    do i=2,n_terms-1
+       call split_equations(this, 0.5_dl*w1*dt, i)
+    enddo
+    call split_equations(this, w1*dt, n_terms)
+    do i=n_terms-1,2,-1
+       call split_equations(this, 0.5_dl*w1*dt,i)
+    enddo
+    call split_equations(this,0.5_dl*(w1+w2)*dt,1)
+  end subroutine symp_o2_step
   
   subroutine yoshida2(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this
