@@ -138,14 +138,14 @@ contains
     real(dl) :: g_loc
 
     g_loc = g
-    
+
     do i=1,this%nfld
        rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
        
        this%tPair%realSpace = this%psi(XIND,1,i)
        call laplacian_1d_wtype(this%tPair, this%dk)
        this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
-            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,2,i) ) *dtau
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,1,i) ) *dtau
 
        
        this%tPair%realSpace = this%psi(XIND,2,i)

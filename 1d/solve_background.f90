@@ -11,7 +11,7 @@ program Solve_Background
   real(dl) :: dt
   
   call create_lattice(mySim,128,16._dl,1)
-  call set_model_parameters(0.4,0.,0.,0.)
+  call set_model_parameters(50.,0.,0.,0.)
   call initialize_trap_potential(mySim, 2._dl)
 
   call imprint_gaussian(mySim, 1._dl)
@@ -20,10 +20,11 @@ program Solve_Background
   write(99) mySim%psi
 
   dt = mySim%dx**2/8.
-  do i=1,100
-     call gradient_flow(mySim,dt,10)
+  do i=1,200
+     call gradient_flow(mySim,dt,50)
      write(99) mySim%psi
   enddo
+  close(99)
   
 contains
 
