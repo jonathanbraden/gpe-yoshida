@@ -5,7 +5,7 @@ module yoshida
   real(dl), dimension(1:2) :: w_o4 = (/0._dl, 0._dl /)
 !  real(dl), dimension(1:4), parameter :: w_o6 = (/ -1.17767998417887_dl, 0.235573213359357_dl, 0.784513610477560_dl, 1._dl-2._dl*(w1+w2+w3) /)
   real(dl), dimension(1:2) :: w_o8 = (/0._dl, 0._dl /)
-
+ 
 contains
   !>@brief
   !> Take nstep steps of size dt on the lattice
@@ -21,6 +21,22 @@ contains
     call symp6(this,dt,nstep)
     this%time = this%time + dt*nstep
   end subroutine step_lattice
+
+  subroutine symp_o2_step(this,dt,w1,w2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt, w1, w2
+
+    integer :: i
+
+    do i=2,n_terms-1
+       call split_equations(this, 0.5_dl*w1*dt, i)
+    enddo
+    call split_equations(this, w1*dt, n_terms)
+    do i=n_terms-1,2,-1
+       call split_equations(this, 0.5_dl*w1*dt,i)
+    enddo
+    call split_equations(this,0.5_dl*(w1+w2)*dt,1)
+  end subroutine symp_o2_step
   
   subroutine symp2(this,dt,nsteps)
     type(Lattice), intent(inout) :: this

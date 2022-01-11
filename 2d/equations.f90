@@ -8,12 +8,43 @@ module Equations
   implicit none
   
   integer, parameter :: n_terms = 3
+  real(dl), dimension(:,:), allocatable :: v_trap
   
 contains
 
   subroutine initialise_fields(this)
     type(Lattice), intent(inout) :: this
   end subroutine initialise_fields
+
+  subroutine initialize_trap(this, amp)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: amp
+
+    integer :: i, nx, ny
+
+    nx = size(this%xGrid); ny = size(this%yGrid)
+
+    allocate(v_trap(1:this%nlat,1:this%nlat))
+    
+    do i=1,this%nlat
+!       v_trap(:,i) = 0._dl
+       v_trap(:,i) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(i)**2),32.)
+    enddo
+
+    open(unit=99,file='trap.bin',access='stream')
+    write(99) v_trap
+    close(99)
+    open(unit=99,file='xgrid.dat')
+    do i=1,nx
+       write(99,*) this%xGrid(i)
+    enddo
+    close(99)
+    open(unit=99,file='ygrid.dat')
+    do i=1,ny
+       write(99,*) this%yGrid(i)
+    enddo
+    close(99)
+  end subroutine initialize_trap
   
   subroutine split_equations(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -29,22 +60,6 @@ contains
        call evolve_potential(this,dt)
     end select
   end subroutine split_equations
-
-  subroutine symp_o2_step(this,dt,w1,w2)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt, w1, w2
-
-    integer :: i
-
-    do i=2,n_terms-1
-       call split_equations(this, 0.5_dl*w1*dt, i)
-    enddo
-    call split_equations(this, w1*dt, n_terms)
-    do i=n_terms-1,2,-1
-       call split_equations(this, 0.5_dl*w1*dt,i)
-    enddo
-    call split_equations(this,0.5_dl*(w1+w2)*dt,1)
-  end subroutine symp_o2_step
 
   subroutine evolve_gradient(this,dt)
     type(Lattice), intent(inout) :: this
@@ -77,7 +92,11 @@ contains
     n = this%nlat
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
+#if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
        this%psi(XIND,1,i_) = this%psi(XIND,1,i_) - 0.5_dl*this%tPair%realSpace(XIND)*dt
     enddo
   end subroutine evolve_gradient_real
@@ -91,11 +110,53 @@ contains
     n = this%nlat
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+#if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
        this%psi(XIND,2,i_) = this%psi(XIND,2,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
     enddo
   end subroutine evolve_gradient_imag
-  
+
+  subroutine evolve_gradient_trap_real(this, dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i_, n
+
+    n = this%nlat
+    do i_=1, this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
+       this%psi(XIND,2,i_) = this%psi(XIND,2,i_)   &
+            + ( 0.5_dl*this%tPair%realSpace(XIND) - v_trap(XIND) )*dt
+    enddo
+  end subroutine evolve_gradient_trap_real
+
+  subroutine evolve_gradient_trap_imag(this, dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i_, n
+
+    n = this%nlat
+    do i_=1, this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_) &
+            - ( 0.5_dl*this%tPair%realSpace(XIND) - v_trap(XIND) )*dt
+    enddo
+  end subroutine evolve_gradient_trap_imag
+    
   subroutine evolve_potential(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt

@@ -16,7 +16,6 @@ program Evolve_GPE
   
   call write_lattice_data(mySim,50)
   do i=1,100
-     print*,"step ",i
      call step_lattice(mySim,0.01,1)
      call write_lattice_data(mySim,50)
   enddo
