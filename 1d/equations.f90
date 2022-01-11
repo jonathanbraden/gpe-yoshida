@@ -48,13 +48,13 @@ contains
     
     allocate( v_trap(1:this%nlat) )
     v_trap = 0._dl
-    !v_trap = -amp*cos( twopi*xGrid/this%lSize )
-    !do i=1,this%nlat
-    !   v_trap = min(amp*0.5*xGrid**2,10.)
-    !enddo
+    !v_trap = -amp*cos( twopi*this%xGrid/this%lSize )
+!    do i=1,this%nlat
+!       v_trap = min(amp*0.5*this%xGrid**2,100.)
+!    enddo
 
     ! Posch-Teller
-    v_trap = -1._dl/cosh(this%xGrid)**2
+    v_trap = -0.5_dl*amp*(amp+1._dl)/cosh(this%xGrid)**2
 
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
@@ -72,7 +72,7 @@ contains
     case(1)
        call evolve_gradient_trap_real(this,dt)
     case(2)
-       !call evolve_potential(this,dt)
+       call evolve_potential(this,dt)
     case(3)
        call evolve_gradient_trap_imag(this,dt)
     end select

@@ -13,7 +13,7 @@ contains
 
     this%psi = 0._dl
     do i_ = 1, this%nfld
-       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)
+       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)/sqrt(0.5_dl*twopi*sig2) !* sqrt(2._dl)*this%xGrid
     enddo
   end subroutine imprint_gaussian
 
@@ -24,9 +24,9 @@ contains
 
     this%psi = 0._dl
     do i_ = 1,this%nfld
-!       this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
-       !       this%psi(:,1,i_) = 1._dl-tanh(this%xGrid)**2
-       this%psi(:,1,i_) = tanh(this%xGrid)*sqrt(1._dl-tanh(this%xGrid)**2)
+       !this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
+       this%psi(:,1,i_) = 1._dl-tanh(this%xGrid)**2 ! ground state for lam=2
+       !this%psi(:,1,i_) = tanh(this%xGrid)*sqrt(1._dl-tanh(this%xGrid)**2) ! first excited state for lam = 2
     enddo
   end subroutine imprint_sech_eigen
   
@@ -59,6 +59,20 @@ contains
     enddo
   end subroutine imprint_bright_soliton
 
+  subroutine imprint_gray_soliton(this,amp,phi)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: amp, phi
+
+    integer :: i_
+    real(dl) :: x0
+
+    x0 = -4._dl
+    this%psi = 0._dl
+
+    this%psi(:,1,1) = amp*cos(phi)*tanh(amp*cos(phi)*(this%xGrid-x0))
+    this%psi(:,2,1) = amp*sin(phi)
+  end subroutine imprint_gray_soliton
+  
   subroutine imprint_mean_relative_phase(this,phase)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: phase

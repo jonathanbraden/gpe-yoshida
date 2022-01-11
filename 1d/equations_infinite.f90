@@ -32,18 +32,29 @@ contains
     t_loc = 0._dl
   end subroutine set_model_parameters
 
-  subroutine initialize_trap_potential(this, xGrid, amp)
+  subroutine initialize_trap_potential(this, xGrid, amp, type)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(1:this%nlat) :: xGrid
     real(dl), intent(in) :: amp
+    integer, intent(in), optional :: type
 
     integer :: i
+    integer :: type_
 
+    type_ = 1; if (present(type)) type_ = type
     allocate( v_trap(1:this%nlat) )
-    v_trap = 0._dl
-    !    v_trap = 0.5_dl*amp*xGrid**2/(1.+0.01*xGrid**2)
-    v_trap = -0.5_dl*amp*(amp+1._dl) / cosh(this%xGrid)**2
 
+    select case (type_)
+    case (1)
+       v_trap = 0._dl
+    case(2)
+       v_trap = -0.5_dl*amp*(amp+1._dl) / cosh(this%xGrid)**2
+    case(3)
+       do i=1,this%nlat
+          v_trap(i) = min(0.5_dl*this%xGrid(i)**2,32.)
+       enddo
+    end select
+       
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
        write(99,*) this%xGrid(i), v_trap(i)

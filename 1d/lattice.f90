@@ -1,5 +1,5 @@
-!#define PERIODIC 1
-#define INFINITE 1
+#define PERIODIC 1
+!#define INFINITE 1
 
 module Simulation
   use constants, only : dl, twopi
