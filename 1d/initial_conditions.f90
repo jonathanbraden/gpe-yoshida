@@ -13,7 +13,7 @@ contains
 
     this%psi = 0._dl
     do i_ = 1, this%nfld
-       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)/sqrt(0.5_dl*twopi*sig2) !* sqrt(2._dl)*this%xGrid
+       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)/(0.5_dl*twopi*sig2)**0.25 !* sqrt(2._dl)*this%xGrid
     enddo
   end subroutine imprint_gaussian
 
