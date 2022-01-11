@@ -1,0 +1,187 @@
+\documentclass{revtex4}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{figs/}}
+
+\begin{document}
+
+Here we present some preliminary code tests for time evolution of a BEC in an external trapping potential.  To make sure all of the kinks are worked out before complexifying our lives, here we focus solely on the trapped nonlinear Schrodinger equation
+\begin{equation}
+  i\dot{\psi} = -\frac{1}{2}\nabla^2\psi + V(x)\psi + \mu\psi + g\left|\psi\right|^2\psi \, .
+\end{equation}
+In the limit $g \to 0$, we recover the standard Schrodinger equation describing the evolution of a single-particle wavefunction.
+This already displays most of the behaviour we will be interested in when considering (coupled) multicomponent systems, so this is a good place to ensure that we understand how to deal with boundary conditions, nonlinear eigenstates, and potentially divergent potentials.
+
+The ultimate goal is to solve these equations in an infinite domain, with Dirichlet boundary conditions, in 2D or 3D.  The jump to 2D and 3D significantly increases the computational burden, rendering many techniques that are effective in 1D extremely costly (if not completely infeasible).  The goal here is to simply implement the necessary techniques in 1D, using methods that scale reasonably (i.e.\ with the number of grid points as $\mathcal{O}(N)$ or $\mathcal{O}(N\ln N)$).
+
+The results here are meant to demonstrate a proof-of-concept for:
+\begin{enumerate}
+\item Moving to an explicit time-stepping scheme (here a specific implementation of a splitting-method), which (i) (excluding derivative calculations) scales as $\mathcal{O}(N)$, and (ii) doesn't require storage of intermediate stages.  This greatly simplifies life when working in 2D and especially 3D.
+\item Extension to the infinite interval $(-\infty,\infty)$ from the assumption of periodic boundary conditions.  I'm using an expansion in (mapped) Chebyshev polynomials, which is optimal in a precise technical sense, and more importantly allows for the use of FFTs to compute derivatives.  Further, by working on the infinite interval, the usual instabilities associated with Chebyshev differentiation are much less severe than they would be on the finite interval.
+\end{enumerate}
+
+The code is written for easy extension to higher dimensions.  I already extended the periodic version to 2D, and it required changing about 5 lines of code.  The change from a Fourier to a mapped Chebyshev expansion similarly only requires changing a few lines of code.  Specifically, a different subroutine is called to compute derivatives, and in setting up the initial lattice a different derived type is needed to store information about the transforms between real and spectral space.
+
+I've also written fast Chebyshev differentiation libraries (and debugged them) in 2D.  Doing high-resolution runs in 3D is going to require some MPI to be written and optimized.  I have a version for doing derivatives in the Fourier expansions using FFTWs slab decomposition, but I'm leaving the Chebyshev version to future work for now.  There are many choices for exactly how to implement the differentiation, so there's going to have to be some study of exactly which approach is most computationally efficient before launching a huge number of Monte Carlo runs.  This might depend on the computing hardware and grid sizes used, so the best thing is probably going to be to just write code for all of the approaches, then benchmark them (which can be automated easily enough) on whatever hardware is going to be used, and pick the fastest one.
+
+There are quite a few technical things that still need to be coded / debugged.  Here's a partial list:
+\begin{enumerate}
+\item Better treatment of boundary conditions.  For now I'm using the Chebyshev-Gauss collocation points, which means that I don't explicitly specify the boundary conditions at $\infty$.  This seems to work, so we might not need to do anything else.  However, in the event this begins to fail, there are some options:
+  \begin{itemize}
+  \item Add support for Chebyshev-Lobatto collocation, which allows the Dirichlet boundary conditions to be imposed explicitly.  I've left this for now because (i) FFTWs implementations of DCT-00 and DST-00 require a bunch of annoying index conversions to be done as derivatives are taken.  As well, the standard algorithm for computing these is apparently numerically unstable, so it's perhaps more efficient to use real-data DFTs.
+  \item An alternative to this would be to re-expand in a basis where all of the basis functions vanish at infinity.  For the Chebyshev's, this is easy to do by subtracting $T_0 = 1$ from the even Chebyshevs, and $T_1 = x$ from the odd Chebyshevs.  I need to work out how the use of the FFT is modified in this case.  As well, this unfortunately leads am implicit doubling of the number of grid points along each direction, and the corresponding non-negligible additional computational cost.
+  \end{itemize}
+\item Optimization of the fast Chebyshev derivatives.  There are many choices that have to be made, and I haven't done proper performance testing to determine which is the fastest.  The most obvious is
+  \begin{itemize}
+  \item Chain rule based calculation of Laplacian.  This is conceptually simple, and allows for ``arbitrary'' mapping of the interval $[0,\pi]$ into $[-\infty,\infty]$ to be implemented easily, thus allowing for a huge range of customization in the basis functions.  The drawback is that some additional FFTs are needed. Naively, we need one forward cosine transform, $d$ backward cosine transforms, and $d$ backward sine transforms, where $d$ is the number of spatial dimensions.  It may be possible to significantly improve my approach by being smarter with the way the calculations are done.
+  \item Using a recurrence relation to compute coefficients in expansion of the Laplacian.  This avoids the additional FFTs (we need one forward and one backward cosine transform).  However, while it's easy to get this recurrence formula on the interval $[-1,1]$, I haven't derived one for the infinite interval (or even determined if one exists).  As well, if MPI is used this will become more complicated as various transposes of the data are needed.
+  \end{itemize}
+  My gut feeling here is that if all the data is stored in one memory bank (no MPI), then recurrence calculations are probably the fastest, while if MPI is needed, then chain rule calculations are probably the fastest since they will avoid additional transpose operations that need mega slow MPI\_all\_to\_all calls.
+
+  There are also a lot of more micro level choices, such as whether to use temporary arrays to more easily vectorized operations, or directly do everything in loops.  The compiler should deal with a lot of this, but sometimes it needs some help.
+\end{enumerate}
+
+\section{Results with Periodic Boundary Conditions}
+Let's start by doing some simple tests of the code to show that we can reproduce known analytic results.
+
+\subsection{Schrodinger Equation}
+To check the implementation of the Laplacian, trapping potential, and chemical potential terms is correct, we set $g=0$, resulting in the standard Schrodinger equation.  Since adjusting $\mu$ allows us to change the time-evolution of the global phase, a good choice of $\mu$ can allow us to use a larger time-step in our calculations.
+
+\subsubsection{Harmonic Oscillator}
+Here I take
+\begin{equation}
+  V(x) = \frac{x^2}{2} \, ,
+\end{equation}
+in dimensionless units.  Note that these dimensionless units are different than the ones used in our previous paper used in our previous papers one the GPE.  The results are shown in Fig.~\ref{fig:harmonic-oscillator-periodic} for the ground state and first excited state.  We see excellent stationarity of the solutions and accuracy in the corresponding energy (i.e.\ time-evolution of the global phase).
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{quadratic-periodic-ground}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-periodic-ground-chem_pot}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-periodic-1st}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-periodic-1st-chem_pot}}
+  \caption{Eigenstate evolution for the harmonic oscillator.  In the left panels we solve the standard Schrodinger equation, and in the right we remove the overall energy phase by using $\mu = E$ with $E$ the energy of the eigenstate.  In the top row we show the lowest energy eigenstate with $E = \frac{1}{2}$ and in the bottow row we show the second energy eigenstate with $E = \frac{3}{2}$.  We've taken the total side length to be $L=16$ and used $N=128$ lattice sites.}
+  \label{fig:harmonic-oscillator-periodic}
+\end{figure}
+
+\subsubsection{$\rm{sech}^2$ potential}
+Because the KdV equation and Inverse Scattering Theory are cool, I've also tested the evolution for
+\begin{equation}
+  V(x) = -\frac{\lambda(\lambda-1)}{2}\mathrm{sech}^2(x) \, .
+\end{equation}
+For integer $\lambda \geq 1$, the bound eigenmodes of this potential are
+\begin{equation}
+  \psi_\lambda^n = P_\lambda^n(\tanh(x))
+\end{equation}
+where $P_\lambda^n$ is the associated Legendre function, and $\mu = 1,2,\dots,\lambda-1,\lambda$.
+The energy of the eigenstates is
+\begin{equation}
+  E = -\frac{n^2}{2} \, .
+\end{equation}
+The resulting evolution for $\lambda = 2$ and the two bound eigenstates is shown in Fig.~\ref{fig:sech2-periodic}.
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{sech2-periodic-ground}}
+  \includegraphics[width=0.45\linewidth]{{sech2-periodic-ground-chem_pot}}
+  \includegraphics[width=0.45\linewidth]{{sech2-periodic-1st}}
+  \includegraphics[width=0.45\linewidth]{{sech2-periodic-1st-chem_pot}}
+  \caption{Evolution of the bound states in the ${\rm sech}^2$ potential with $\lambda = 2$ on a periodic grid.  In the top row we show the evolution for the ground state, and in the bottom row for the first excited state.  In the left column we have set $\mu = 0$ and in the right colum $\mu = E$ to show we are capturing the time evolution correctly.  The lattice parameters are the same as Fig.~\ref{fig:hamonic-oscillator-periodic}.}
+  \label{fig:sech2-periodic}
+\end{figure}
+
+\subsection{Bright Solitons in the NLSE}
+Now we test the NLSE by dropping the trapping potential $V(x)$.  
+For $g < 0$, this has well-known solutions called bright solitons
+\begin{equation}
+\end{equation}
+For $g > 0$ the state $\psi = 0$ is unstable, and there are instead nonlinear dark soliton solutions which are perturbations off a non-zero condensate value.
+Unfortunately, individual dark solitons are not periodic ($\psi(-\inf) = -\psi(\infty)$), so they can't be captured by a standard Fourier expansion with periodic boundary conditions.  There are some straightforward ways around this, but they require writing new differentiation libraries to account for the modified expansion basis, so I haven't implemented them yet.  I've included a video showing the evolution a bright soliton with $g = -1$.
+
+\section{Results on the Infinite Interval}
+While we could simply use periodic boundary conditions in sufficiently large boxes to study the realistic case of trapping potentials, this introduces additional truncation errors associated with the size of the simulation box that must be controlled.  It is therefore convenient to instead work in an infinitely large box.  Here, I expand the functions as
+\begin{equation}
+  \psi(r) = \sum_{k=0}^{N-1} TB_{k}(r) = \sum_{k=0}^{N-1} = T_k(x(r)) \sum_{k=0}^{N-1} \cos(k\cos^{-1}(x(r)))
+\end{equation}
+where
+\begin{equation}\label{eqn:r-map}
+  r(x) = L\frac{x}{\sqrt{1-x^2}} \, .
+\end{equation}
+I then solve the nonlinear equation via collocation (i.e.\ by imposing the equation of motion is satisfied at the collocation points).  Galerkin methods are another option, but more numerically expensive and difficult to program.  The specific choice of mapping~\eqref{eqn:r-map} has some benefits, but can be changed almost trivially.  It's also easy to relate all of this to a cosine expansion rather than Chebyshev expansion using $x=\cos\theta$ with $\theta \in [0,\pi]$.
+
+\subsection{Schrodinger Equation on the Infinite Interval}
+Here I repeat the calculations for the quadratic and ${\rm sech}^2$ potentials using solutions on the interval $[-\infty,\infty]$.
+This is a good test that everything except the $\left|\psi\right|^2\psi$ term is working correctly.
+
+\subsubsection{Harmonic Oscillator}
+We start with the harmonic oscillator.
+To avoid numerical instabilities induced by large values of $V$, we have truncated the potential at a maximum value of $32$, which facilitates comparison with the periodic case.  At the point the ground state has dropped to a value $\sim 10^{-14}$.  The results are shown in Fig.~\ref{fig:harmonic-oscillator-infinite}, where we see that we are able to correctly evolve the ground state to high accuracy.  (I haven't done proper convergence testing, but these figures are accurate to $\mathcal{O}(10^{-12})$.)
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{quadratic-infinite-ground}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-infinite-ground-chem_pot}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-infinite-1st}}
+  \includegraphics[width=0.45\linewidth]{{quadratic-infinite-1st-chem_pot}}
+  \caption{Eigenstate evolution for the harmonic oscillator evolved on the infinite interval.  In the left panels we solve the standard Schrodinger equation, and in the right we remove the overall energy phase by using $\mu = E$ with $E$ the energy of the eigenstate.  In the top row we show the lowest energy eigenstate with $E = \frac{1}{2}$ and in the bottow row we show the second energy eigenstate with $E = \frac{3}{2}$.}
+  \label{fig:harmonic-oscillator-infinite}
+\end{figure}
+
+\subsubsection{${\rm sech}^2$ Potential}
+We again redo the bound state eigenvalue evolution in the $\frac{\lambda(\lambda+1}{2}{\rm sech}^2$ potential, with $\lambda = 2$.
+The results are in Fig.~\ref{fig:sech2-infinite}.
+As with the harmonic oscillator, we see that we are able to accurately evolve the bound eigenstates.
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{sech2-infinite-ground}}
+  \includegraphics[width=0.45\linewidth]{{sech2-infinite-ground-chem_pot}}
+  \includegraphics[width=0.45\linewidth]{{sech2-infinite-1st}}
+  \includegraphics[width=0.45\linewidth]{{sech2-infinite-1st-chem_pot}}
+  \caption{Eigenstate evolution for the two bound eigenstates of the potential $V(x) = -3{\rm sech}^2(x)$ on the infinite interval.  In the left panels we solve the standard Schrodinger equation (with $\mu = 0$), and in the right panels we demonstrate the removal of the overall energy phase by using $\mu = E$ with $E$ the energy of the eigenstate.}
+  \label{fig:sech2-infinite}
+\end{figure}
+
+\subsection{Dark Solitons}
+Because we no longer have the periodicity constraint, it is now straightforward to evolve a dark soliton.  However, it is of course impossible for a non-adaptive grid with a finite number of points to resolve the full evolution out to infinity, therefore, we focus on the evolution from $x_0 = -4$ to $x_0 \sim 4$.  The results are shown in Fig.~\ref{fig:dark-soliton}.
+
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{psi-real-dark-soliton}}
+  \includegraphics[width=0.45\linewidth]{{density-dark-soliton}}
+  \caption{Numerical evolution of a dark soliton on the infinite line.  I've taken $\phi = \frac{\pi}{8}$, $A = 0.5$, and grid mapping parameter $L=4$ with $N=64$ grid sites.  In the left we show the real part of $\psi$ and in the right the density $|\psi|^2$.  For clarity, we have removed the evolution of the global phase by including a chemical potential $\mu = A^2$ in the dynamical equation.}
+  \label{fig:dark-soliton}
+\end{figure}
+
+\section{Approximate Ground States}
+Once the external trap is present, the first step is to obtain the initial state that we will evolve from.  For periodic boundary conditions, this is easy since the minimal energy background is spatially homogeneous (even for multiple fields) and we just have to do a low-dimensional root find.  Once we have this information, we can compute its eigenmodes, which can then be used to produce free-feild vacuum or thermal realizations.
+
+\subsection{Perturbing off the Free Field}
+One limit in which we have an approximate vacuum is when the contributions of the nonlinear scattering term are small ($g \ll 1$).  In this case, the background vacuum state of the condensate will be close to that of the harmonic oscillator.
+
+We show this evolution in Fig.~\ref{fig:gs-evolve-nl} for both the real part of $\psi$ and the change in the local density $|\psi|^2$.  For clarity, we have removed the global phase rotation that would be present if this was an eigenstate with energy equal to that of the harmonic oscillator ground state.  From the left panel, we see a slow evolution of $\psi_{\rm real}$, indicating a deformation of the chemical potential of the state.  In the right panel, we can see the evolution of the profile resulting from the fact that is not an eigenstate of the full nonlinear equation.
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{{psi-evolution-gs-nl}}
+  \includegraphics[width=0.45\linewidth]{{density-evolution-gs-nl}}
+  \caption{Evolution of the harmonic oscillator ground state in the NLSE with $g=0.1$.  For clarity, we have included a chemical potential $\mu = 0.5$, corresponding to the energy of the ground state of the harmonic oscillator.  On the left we show the evolution of the real part of $\psi$.  On the right we show $|\psi|^2 - |\psi(t=0)|^2$.}
+  \label{fig:gs-evolve-nl}
+\end{figure}
+
+\subsection{Perturbing off of Strong Interactions}
+In the opposite limit we instead assume that the local dynamics dominate the behaviour of the vacuum state.  Technically, this means we drop the Laplacian terms in the equations of motion.  The result is
+\begin{equation}
+  \psi \approx \begin{cases}
+    \sqrt{\frac{\mu-V(r)}{g}}  & V(r) < \mu \\
+    0 & V(r) \geq \mu
+  \end{cases}
+\end{equation}
+Unfortunately, this leads to nonanalyticity, which is extremely bad for global expansions such as those used in pseudospectral methods.
+As well, this is unphysical as the huge implied values of the derivatives mean that we can't self-consistently drop the Laplacian terms.
+In practice, near the singularities, the Laplacian and local interaction terms will all contribution and work to smooth the solution on scales of order the healing length.
+Since doing this properly requires solving the nonlinear eigenvalue equation, to get a flavour for what will happen we will instead use a ``smoothed'' version of the background, which is easiest to do by mapping the spatial coordinate in such a way that we have a critical slowing down as we approach the singularity at $V = V^{-1}(\mu)$.
+
+
+\subsection{Solving for the initial background}
+I have some preliminary thoughts on how to actually numerically solve for the ground state.  The most straightforward way is via gradient descent (or imaginary time propagation if you prefer).  The issue is that this rapidly depletes the norm of the wavefunction, so we have to constantly renormalize it.  There's an obvious way to modify the flow to preserve the $L_2$ norm of the wavefunction, so solving this would then (hopefully) converge to the ground state.
+
+However, given this is gradient descent, it will only approach the ground state and never reach it, and it will be painfully slow compared to a better root-finding approach.
+ Again, most of my experience is with relativistic fields, but if we're solving for a topological defect a Newton iteration typically converges to machine precision in a handful of steps (5 or 6), while gradient flow usually requires order thousands or more to reach much worse accuracy, and sometimes requires tuning of the parameter controlling the size of the step.
+Unfortunately, given the nonlinear nature of the eigenvalue problem (in the field we're solving for, not the eigenvalue itself), I don't currently have a good way to formulate the problem as an easy to implement root-finding in high-dimensions, so as a first step its probably easiest to just do the gradient flow.  A really naive implementation of this just requires a solver for the heat equation to be written (which is trivial in Fourier modes, a bit harder in Chebyshev).  I have notes on how to formulate this that I'll send if anyone is interested.
+
+\section{Possible Numerical Difficulties}
+The biggest difficulty I've encountered in practice occurs when the potential is unbounded above.  A common example is a harmonic oscillator trap.  Naively trying to evolve the equations then leads to huge numerical instabilities at large radii.  The easiest solution to this is to truncate the potential by imposing a maximum value $V_{\rm max}$ and using $V_{\rm max} = \mathrm{min}(V(x),V_{\rm max})$.  For the quadratic potential, choosing $V_{\rm max}$ to be the value when the ground state solution drops to $10^{-14}$ seems to work reasonably well.  An alternative approach is to simply diagonalize the linear part of the equation of motion (almost trivial using pseudospectral methods, although it may require some preconditioning for unbounded potentials), and then evolve in these eigenstates.  However, a naive implementation will scale as $N^2$, with some improvements on the exponent possible by using fancy matrix multiplication tricks.  However, this is always going to be slower than an non-diagonalization FFT based approach, making it less than ideal in more than one dimension.
+
+Another potential issue is if there is ``radiation'' escaping from the trap, in which case absorbing boundary conditions should be implemented.  Perfectly matched layers go together naturally with spectral methods, although they will probably require the introduction of some auxilliary variables (which are roughly there to determine the dynamically evolving effective linear frequency).  I don't know how precisely to formulate these for the Schrodinger equation, but have implemented them for relativistic scalar fields (in bounded or unbounded domains), and they typically give machine-precision absorption.  Of course, since having deep potential wells will naturally damp out fluctuations at large radii (unless they are very energetic), this may be unnecessary.
+
+\end{document}

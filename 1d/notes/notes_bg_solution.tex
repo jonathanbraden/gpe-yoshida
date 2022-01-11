@@ -1,0 +1,88 @@
+\documentclass{revtex4}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+
+\newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
+
+\begin{document}
+
+The NLSE is
+\begin{equation}
+  i\dot{\psi} = -\frac{1}{2}\nabla^2\psi + V(x)\psi + \beta\abs{\psi}^2\psi
+\end{equation}
+On the ground state, we have $\psi(x,t) = e^{-i\mu t}\phi(x)$, so that
+\begin{equation}\label{eqn:mu-eigen}
+  \mu\phi = -\frac{1}{2}\nabla^2\phi + V(x)\phi + \beta\abs{\phi}^2\phi \, .
+\end{equation}
+As well, given our choice of units, we must have
+\begin{equation}\label{eqn:wf-constraint}
+  \int \abs{\phi}^2 = \mathcal{N} \, .
+\end{equation}
+Therefore, we can obtain $\mu$ from the following integral
+\begin{equation}\label{eqn:mu-integral}
+  \mathcal{N}\mu = \int\left(\frac{\abs{\nabla\phi}^2}{2} + V\abs{\phi}^2 + \beta\abs{\phi}^4 \right) \, .
+\end{equation}
+This can be related to the energy of the BEC via
+\begin{equation}\label{eqn:state-energy}
+  E = \int\left(\frac{\abs{\nabla\phi}^2}{2} + V\abs{\phi}^2 + \frac{\beta}{2}\abs{\phi}^4 \right) 
+\end{equation}
+via
+\begin{equation}
+  \mathcal{N}\mu = E + \frac{\beta}{2}\int\abs{\psi}^4
+\end{equation}
+
+Our goal is therefore to solve the nonlinear eigenvalue problem~\eqref{eqn:mu-eigen} subject to the constraint~\eqref{eqn:wf-constraint}.
+The ground state is then given by the state with the smallest $\mu$ among these options.
+We now present some approaches to solving this equation.
+
+\section{Imaginary Time Approach}
+Our physics intuition suggests that the ground state of a nonlinearly interacting field theory can be obtained via an appropriate evolution in imaginary time (as long as our initial guess has a nonzero overlap with the ground state).
+
+As applied to the BEC, we take $\tau = it$ to obtain
+\begin{equation}
+  \frac{\partial\psi}{\partial \tau} = \frac{1}{2}\nabla^2\psi - V(x)\psi - \beta |\psi|^2\psi \, .
+\end{equation}
+Note that this is essentially a gradient flow on the condensate energy density functional~\eqref{eqn:state-energy}.
+On the ground state, we have
+\begin{equation}
+  \psi(x,\tau) = e^{-i\mu\tau}\phi(x)
+\end{equation}
+while off of the ground state the corrections damp faster than that of the ground state.
+
+A major drawback of this approach is that the norm of the condensate decreases in time, forcing us to constantly renormalize the state (which was defined in terms of the physical number of particles).  Therefore, we want to enforce
+\begin{equation}
+  \int d^dx |\psi|^2 = \mathcal{N} \, ,
+\end{equation}
+with a common and convenient value being $C=1$.
+
+The decay rate of the ground state suggests the following modification
+\begin{equation}
+  \frac{\partial\psi}{\partial \tau} = \frac{1}{2}\nabla^2\psi - V(x)\psi - \beta |\psi|^2\psi + \mu\psi\, .
+\end{equation}
+where $\mu$ is determined from the state $\psi$ via~\eqref{eqn:mu-integral}.  Explicitly computing the evolution of $\int\abs{\psi}^2$, we see it is invariant under $\tau$ evolution.
+
+We can also compute the evolution of $\mu$
+\begin{equation}
+  \partial_\tau\mu = 
+\end{equation}
+
+It is straightforward to apply a splitting scheme to the (unnormalized) gradient descent.  Evolution of the linear pieces can be done via diagonalization (although this should be precomputed to work efficiently).
+Meanwhile, to solve the nonlinear term we write
+\begin{equation}
+  \psi = \rho e^{i\theta} \, .
+\end{equation}
+Plugging into $\partial_\tau\psi = -\beta\abs{\psi}^2\psi$, we immediately obtain
+\begin{align}
+  \partial_\tau\rho &= -\beta\rho^3 \\
+  \partial_\tau\theta &= 0 \, .
+\end{align}
+This is easily solved to obtain
+\begin{equation}
+  \rho(t_0+\Delta t) = \frac{\rho_0}{\sqrt{1+2\rho_0^2\beta\Delta t}} \, ,
+\end{equation}
+where $\rho_0 = \rho(t_0)$.
+
+\section{Required Extensions}
+The issue with the imaginary time-evolution approach outlined above is that it is difficult to pick out excited states (or unstable states) using it.
+
+\end{document}
