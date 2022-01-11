@@ -75,9 +75,14 @@ ifeq ($(BENCH_FINE),T)
 endif
 
 OBJS = constants.o fftw_mod_wtype.o lattice.o random_field.o equations.o yoshida.o
+OBJS_INF = constants.o fast_cheby_2d.o lattice.o equations_infinite.o yoshida.o
 
 gp: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-2d evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
+
+gp_inf: %: $(OBJS_INF) evolve_infinite.o
+	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-2d evolve_infinite.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
+
 
 %.o: %.f90
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -c $< -o $@ $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)

@@ -14,11 +14,14 @@ module Simulation
      real(dl), dimension(:,:,:,:), allocatable :: psi
      real(dl), dimension(:), allocatable :: xGrid, yGrid
      real(dl) :: time
-     integer :: nlat, nFld
+     integer :: nx, ny
+     integer :: nFld
      real(dl) :: dx, lSize, dk
-!#ifdef SPECTRAL
+#if defined(PERIODIC)
      type(transformPair2D) :: tPair
-!#endif
+#elif defined(INFINITE)
+     type(chebyshevPair2D) :: tPair
+#endif     
   end type Lattice
   
 contains
@@ -31,20 +34,22 @@ contains
     integer :: i_
     
     this%time = 0._dl
-    this%nlat = n; this%lSize = len
+    this%nx = n; this%ny = n
+    this%lSize = len
     this%nFld = nf
-    allocate(this%xGrid(1:n), this%yGrid(1:n))
+    allocate(this%xGrid(1:this%nx), this%yGrid(1:this%ny))
 
 #if defined(PERIODIC)
     this%dx = len/dble(n); this%dk = twopi/len
     call initialize_transform_2d(this%tPair, (/n,n/) )
-    this%xGrid = [ ( (i_-1)*this%dx, i_=1,n) ]
-    this%yGrid = [ ( (i_-1)*this%dx, i_=1,n) ]
+    this%xGrid = [ ( (i_-1)*this%dx, i_=1,n) ] - 0.5_dl*len
+    this%yGrid = [ ( (i_-1)*this%dx, i_=1,n) ] - 0.5_dl*len
 #elif defined(INFINITE)
     call initialize_transform_cheby_2d(this%tPair, (/n,n/), 1)
     call transform_rational_cheby(this%tPair, len)
     this%xGrid = this%tPair%xGrid
     this%yGrid = this%tPair%yGrid
+    this%dx = minval(abs(this%xGrid(2:)-this%xGrid(:n-1)))
 #endif
 !#ifdef SPECTRAL
     allocate( this%psi(1:n,1:n,1:2,1:nf) )
@@ -54,7 +59,7 @@ contains
   subroutine destroy_lattice(this)
     type(Lattice), intent(inout) :: this
 
-    this%time = -1._dl; this%nlat = -1; this%lSize = -1.
+    this%time = -1._dl; this%nx = -1; this%ny = -1; this%lSize = -1.
     this%dx = -1.; this%dk = -1.; this%nFld = -1
     if (allocated(this%psi)) deallocate(this%psi)
 #if defined(PERIODIC)
@@ -83,7 +88,7 @@ contains
     inquire(opened=o,unit=fNum)
     if (.not.o) open(unit=fNum,file='fields.bin',access='stream')
 
-    write(fNum) this%psi(1:this%nlat,1:this%nlat,:,:)
+    write(fNum) this%psi(1:this%nx,1:this%ny,:,:)
     
   end subroutine write_lattice_data
   
@@ -92,7 +97,6 @@ contains
     logical, intent(in) :: direct
     integer :: n
 
-    n = this%nlat
   end function gradient_energy_spectral
   
 end module Simulation

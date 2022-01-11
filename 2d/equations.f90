@@ -1,4 +1,5 @@
-#define XIND 1:n,1:n
+#define XIND 1:nx,1:ny
+#define PERIODIC
 
 module Equations
   use constants, only : dl, twopi
@@ -6,16 +7,21 @@ module Equations
   use Simulation
 
   implicit none
-  
+
+  real(dl) :: g, g_c, nu, mu
   integer, parameter :: n_terms = 3
   real(dl), dimension(:,:), allocatable :: v_trap
   
 contains
 
-  subroutine initialise_fields(this)
-    type(Lattice), intent(inout) :: this
-  end subroutine initialise_fields
+  subroutine set_model_parameters(g_,gc_,nu_,mu_)
+    real(dl), intent(in) :: g_, gc_, nu_, mu_
 
+    g = g_; g_c = gc_
+    nu = nu_
+    mu = mu_
+  end subroutine set_model_parameters
+  
   subroutine initialize_trap(this, amp)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: amp
@@ -24,12 +30,14 @@ contains
 
     nx = size(this%xGrid); ny = size(this%yGrid)
 
-    allocate(v_trap(1:this%nlat,1:this%nlat))
+    allocate(v_trap(1:nx,1:ny))
+
+    v_trap = 0._dl
     
-    do i=1,this%nlat
+!    do i=1,ny
 !       v_trap(:,i) = 0._dl
-       v_trap(:,i) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(i)**2),32.)
-    enddo
+!       v_trap(:,i) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(i)**2),32.)
+!    enddo
 
     open(unit=99,file='trap.bin',access='stream')
     write(99) v_trap
@@ -55,41 +63,19 @@ contains
     case (1)
        call evolve_gradient_real(this,dt)
     case(2)
-       call evolve_gradient_imag(this,dt)
-    case(3)
        call evolve_potential(this,dt)
+    case(3)
+       call evolve_gradient_imag(this,dt)
     end select
   end subroutine split_equations
-
-  subroutine evolve_gradient(this,dt)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-
-    integer :: i_, n
-
-    n = this%nlat
-    do i_ = 1,this%nfld
-#ifdef FULL_LIN
-       this%tPair%realSpace(1:n) = this%psi(:,1,i_)
-       call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
-       ! Do multiplication
-       call fftw_execute_dft_c2r(this%tPair%planf, this%tPair%specSpace, this%tPair%realSpace)
-       
-       this%tPair%realSpace(1:n) = this%psi(:,2,i_)
-       call fftw_execute_dft_r2c(this%tPair%planf, this%tPair%realSpace, this%tPair%specSpace)
-       ! Do multiplication
-       call fftw_execute_dft_c2r(this%tPair%planf, this%tPair%specSpace, this%tPair%realSpace)
-#endif
-    enddo
-  end subroutine evolve_gradient
 
   subroutine evolve_gradient_real(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_, n
+    integer :: i_, nx, ny
 
-    n = this%nlat
+    nx = this%nx; ny = this%ny
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
 #if defined(PERIODIC)
@@ -105,9 +91,9 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_, n
+    integer :: i_, nx, ny
 
-    n = this%nlat
+    nx = this%nx; ny = this%ny
     do i_=1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
 #if defined(PERIODIC)
@@ -123,9 +109,9 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_, n
+    integer :: i_, nx, ny
 
-    n = this%nlat
+    nx = this%nx; ny = this%ny
     do i_=1, this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
 #if defined(PERIODIC)
@@ -142,9 +128,9 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_, n
+    integer :: i_, nx, ny
 
-    n = this%nlat
+    nx = this%nx; ny = this%ny
     do i_=1, this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
 #if defined(PERIODIC)
@@ -161,19 +147,19 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
-    integer :: n
-    real(dl) :: g
-    real(dl), dimension(1:this%nlat,1:this%nlat) :: rho
+    integer :: i_, nx, ny
+    real(dl) :: g_loc, mu_loc
+    real(dl), dimension(1:this%nx,1:this%ny) :: rho
+
+    g_loc = g; mu_loc = mu
     
-    g = 1._dl  ! Adjust model parameter
-    n = this%nlat
+    nx = this%nx; ny = this%ny
     
     do i_ = 1,this%nfld
        rho = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
        this%tPair%realSpace = this%psi(XIND,2,i_)
-       this%psi(1:n,1:n,2,i_) = cos(g*rho*dt)*this%psi(XIND,2,i_) - sin(g*rho*dt)*this%psi(XIND,1,i_)
-       this%psi(XIND,1,i_) = cos(g*rho*dt)*this%psi(XIND,1,i_) + sin(g*rho*dt)*this%tPair%realSpace(XIND)
+       this%psi(1:nx,1:ny,2,i_) = cos(g_loc*rho*dt)*this%psi(XIND,2,i_) - sin(g_loc*rho*dt)*this%psi(XIND,1,i_)
+       this%psi(XIND,1,i_) = cos(g_loc*rho*dt)*this%psi(XIND,1,i_) + sin(g_loc*rho*dt)*this%tPair%realSpace(XIND)
     enddo
   end subroutine evolve_potential
 
