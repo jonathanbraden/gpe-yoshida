@@ -38,7 +38,7 @@ contains
     v_trap = 0._dl
     !v_trap = -amp*cos( twopi*this%xGrid/this%lSize )
     do i=1,this%nlat
-       v_trap = min(amp*0.5*this%xGrid**2,32.)
+       v_trap = min(amp*0.5*this%xGrid**2,64.)
     enddo
 
     ! Posch-Teller
@@ -128,7 +128,6 @@ contains
     enddo
   end subroutine renorm_field
 
-  ! Not debugged
   subroutine gradient_step(this,dtau)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dtau
@@ -155,5 +154,31 @@ contains
     enddo
        
   end subroutine gradient_step
+
+  real(dl) function chemical_potential(this) result(mu)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nlat) :: rho2
+    integer :: i
+    real(dl) :: g_loc
+
+    g_loc = g
+    mu = 0._dl
+    
+    do i=1,this%nfld
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+       mu = -0.5_dl*sum(this%tPair%realSpace*this%psi(XIND,1,i))
+
+       this%tPair%realSpace = this%psi(XIND,2,i)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+       mu = mu -0.5_dl*sum(this%tPair%realSpace*this%psi(XIND,2,i))
+
+       mu = mu + sum(v_trap*rho2) + g_loc*sum(rho2**2)
+    enddo
+    mu = this%dx*mu
+  end function chemical_potential
   
 end module Equations_Imag
