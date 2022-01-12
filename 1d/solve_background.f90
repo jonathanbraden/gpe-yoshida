@@ -20,7 +20,7 @@ program Solve_Background
   
   call imprint_gaussian(mySim, 1._dl)
 
-  open(unit=99,file='grad_descent.bin',access='stream')
+  open(unit=99,file='gpe_vacua.bin',access='stream')
   open(unit=98,file='chemical_potential.dat')
 
   dt = mySim%dx**2/8.

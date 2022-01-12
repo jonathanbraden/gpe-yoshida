@@ -93,4 +93,4 @@ bg: %: $(OBJS_BG) solve_background.o
 clean:
 	rm -f *.o
 	rm -f *.mod
-	rm -f gp-1d
+	rm -f gp-1d gp-bg
