@@ -1,4 +1,5 @@
-#define PERIODIC 1
+!#define PERIODIC 1
+#define INFINITE 1
 #define XIND 1:this%nlat
 
 module Equations_imag
@@ -33,6 +34,7 @@ contains
     real(dl), intent(in) :: amp
     
     integer :: i
+    real(dl) :: x0
     
     allocate( v_trap(1:this%nlat) )
     v_trap = 0._dl
@@ -41,6 +43,9 @@ contains
        v_trap = min(amp*0.5*this%xGrid**2,64.)
     enddo
 
+    !x0 = 5._dl
+    !v_trap = amp*(2.+tanh(this%xGrid-x0)-tanh(this%xGrid+x0))
+    
     ! Posch-Teller
 !    v_trap = -0.5_dl*amp*(amp+1._dl)/cosh(this%xGrid)**2
 
@@ -51,17 +56,21 @@ contains
     close(99)
   end subroutine initialize_trap_potential
 
-  subroutine gradient_flow(this,dtau,nsteps)
+  real(dl) function gradient_flow(this,dtau,nsteps) result(error)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dtau
     integer, intent(in) :: nsteps
 
+    real(dl), dimension(1:this%nlat,1:2,1:this%nfld) :: psi_prev
     integer :: i
+    
+    psi_prev(:,:,:) = this%psi(XIND,:,:)
     do i=1,nsteps
        call gradient_step(this,dtau)
        call renorm_field(this)
     enddo
-  end subroutine gradient_flow
+    error = maxval(abs(this%psi(XIND,:,:)-psi_prev))
+  end function gradient_flow
   
   subroutine split_equations_bg(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -86,12 +95,20 @@ contains
 
     do i = 1,this%nFld
        this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
        this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
             ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) )*dt
 
        this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
        this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
             ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i) )*dt
     enddo
@@ -123,7 +140,11 @@ contains
     integer :: i
     
     do i=1,this%nfld
+#if defined(PERIODIC)
        norm = sum(this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2) * this%dx
+#elif defined(INFINITE)
+       norm = sum( (this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2)*this%tPair%quad_weights )
+#endif
        this%psi = this%psi / sqrt(norm)
     enddo
   end subroutine renorm_field
@@ -142,43 +163,65 @@ contains
        rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
        
        this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
        this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
             ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,1,i) ) *dtau
 
        
        this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
        this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
             ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i) - g_loc*rho2*this%psi(XIND,2,i) ) * dtau
     enddo
        
   end subroutine gradient_step
 
+  ! Fix this to compute integral properly for cheby calculation
   real(dl) function chemical_potential(this) result(mu)
     type(Lattice), intent(inout) :: this
 
-    real(dl), dimension(1:this%nlat) :: rho2
+    real(dl), dimension(1:this%nlat) :: rho2, mu_loc
     integer :: i
     real(dl) :: g_loc
 
     g_loc = g
     mu = 0._dl
+    mu_loc = 0._dl
     
     do i=1,this%nfld
        rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
        
        this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair,this%dk)
-       mu = -0.5_dl*sum(this%tPair%realSpace*this%psi(XIND,1,i))
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = -0.5_dl*this%tPair%realSpace*this%psi(XIND,1,i)
 
        this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
        call laplacian_1d_wtype(this%tPair,this%dk)
-       mu = mu -0.5_dl*sum(this%tPair%realSpace*this%psi(XIND,2,i))
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,i)
 
-       mu = mu + sum(v_trap*rho2) + g_loc*sum(rho2**2)
+       mu_loc = mu_loc + v_trap*rho2 + g_loc*rho2**2
     enddo
-    mu = this%dx*mu
+#if defined(PERIODIC)
+    mu = this%dx*sum(mu_loc)
+#elif defined(INFINITE)
+    mu = sum(mu_loc*this%tPair%quad_weights)
+#endif
   end function chemical_potential
   
 end module Equations_Imag

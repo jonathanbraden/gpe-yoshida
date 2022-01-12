@@ -11,6 +11,7 @@ module Fast_Cheby
      integer :: nx, n_logical, order
      integer :: type
      real(C_DOUBLE), dimension(:), allocatable :: xGrid, dTheta, d2Theta
+     real(C_DOUBLE), dimension(:), allocatable :: quad_weights
      real(C_DOUBLE), pointer :: realSpace(:)
      real(C_DOUBLE), pointer :: specSpace(:)
      type(C_PTR) :: plan_cos_f, plan_cos_b, plan_sin_b
@@ -52,7 +53,8 @@ contains
     if (allocated(this%xGrid))   deallocate(this%xGrid)
     if (allocated(this%dTheta))  deallocate(this%dTheta)
     if (allocated(this%d2Theta)) deallocate(this%d2Theta)
-    allocate(this%xGrid(1:this%nx), this%dTheta(1:this%nx), this%d2Theta(1:this%nx))
+    if (allocated(this%quad_weights)) deallocate(this%quad_weights)
+    allocate(this%xGrid(1:this%nx), this%dTheta(1:this%nx), this%d2Theta(1:this%nx),this%quad_weights(1:this%nx))
     
     select case (type)
     case (1)  ! Gauss abscissa
@@ -72,15 +74,18 @@ contains
     select case (type)
     case (1)  ! Gaussian Nodes
        this%xGrid = (/ ( cos(0.5_dl*twopi*(i-0.5_dl)/dble(this%nx)), i=1,this%nx ) /)
-       this%dTheta = 1._dl/sqrt(1._dl-this%xGrid**2) ! check this
-       this%d2Theta = this%xGrid/(1._dl-this%xGrid**2)**1.5  ! check this
-
+       this%dTheta = 1._dl/sqrt(1._dl-this%xGrid**2) 
+       this%d2Theta = this%xGrid/(1._dl-this%xGrid**2)**1.5  
+       this%quad_weights = sqrt(1._dl-this%xGrid**2) * 0.5_dl*twopi / dble(this%nx)  
+       
     case (2)  ! Lobatto Nodes
        this%xGrid = (/ ( cos(0.5_dl*twopi*(i-1)/dble(this%order)), i=1,this%nx ) /)
        this%dTheta(1) = 0._dl; this%dTheta(this%nx) = 0._dl
        this%dTheta(2:this%nx-1) = 1./sqrt(1._dl-this%xGrid(2:this%nx-1)**2)
        this%d2Theta = 0._dl  ! Fill this in
+       this%quad_weights = 0._dl  ! Fix this
 
+       print*,"Fast version of Lobatto nodes not yet implemented"
     case default
        this%xGrid = (/ ( cos(0.5_dl*twopi*(i-0.5_dl)/dble(this%nx)), i=1,this%nx ) /)
        this%dTheta = 1._dl/sqrt(1._dl-this%xGrid**2)
@@ -113,7 +118,8 @@ contains
     this%dTheta = (this%xGrid**2-1._dl) / lenPar
     this%d2Theta = 2._dl*this%xGrid*(1._dl-this%xGrid**2)**1.5 / lenPar**2
     this%xGrid = lenPar*this%xGrid / sqrt(1._dl-this%xGrid**2)
-
+    this%quad_weights = this%quad_weights * (lenPar**2 + this%xGrid**2)**1.5/lenPar**2 ! Fix this
+    
     ! Use r coordinates
 !    this%xGrid = this%xGrid / sqrt(1._dl-this%xGrid**2)
 !    this%dTheta = -1._dl / (1._dl+this%xGrid**2) / lenPar
@@ -135,6 +141,12 @@ contains
     fptr = fftw_alloc_real(int(L, C_SIZE_T)); call c_f_pointer(fptr, arr, [n_real])
     sptr = fftw_alloc_real(int(L, C_SIZE_T)); call c_f_pointer(sptr, ck, [n_spec])
   end subroutine allocate_1d_array_cheby
+
+  real(dl) function quadrature(this) result(quad)
+    type(chebyshevPair1D), intent(in) :: this
+
+    quad = sum(this%realSpace*this%quad_weights)
+  end function quadrature
   
   subroutine forward_transform_cheby_1d(this)
     type(chebyshevPair1D), intent(inout) :: this
