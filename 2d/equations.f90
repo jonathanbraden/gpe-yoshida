@@ -1,9 +1,14 @@
 #define XIND 1:nx,1:ny
-#define PERIODIC
+!#define PERIODIC
+#define INFINITE
 
 module Equations
   use constants, only : dl, twopi
+#if defined(PERIODIC)
   use fftw3
+#elif defined(INFINITE)
+  use Fast_Cheby_2D
+#endif
   use Simulation
 
   implicit none
@@ -149,17 +154,19 @@ contains
 
     integer :: i_, nx, ny
     real(dl) :: g_loc, mu_loc
-    real(dl), dimension(1:this%nx,1:this%ny) :: rho
+    real(dl), dimension(1:this%nx,1:this%ny) :: phase_shift
 
     g_loc = g; mu_loc = mu
     
     nx = this%nx; ny = this%ny
     
     do i_ = 1,this%nfld
-       rho = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
+       phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
+       phase_shift = (g_loc*phase_shift - mu)*dt
+
        this%tPair%realSpace = this%psi(XIND,2,i_)
-       this%psi(1:nx,1:ny,2,i_) = cos(g_loc*rho*dt)*this%psi(XIND,2,i_) - sin(g_loc*rho*dt)*this%psi(XIND,1,i_)
-       this%psi(XIND,1,i_) = cos(g_loc*rho*dt)*this%psi(XIND,1,i_) + sin(g_loc*rho*dt)*this%tPair%realSpace(XIND)
+       this%psi(1:nx,1:ny,2,i_) = cos(phase_shift)*this%psi(XIND,2,i_) - sin(phase_shift)*this%psi(XIND,1,i_)
+       this%psi(XIND,1,i_) = cos(phase_shift)*this%psi(XIND,1,i_) + sin(phase_shift)*this%tPair%realSpace(XIND)
     enddo
   end subroutine evolve_potential
 

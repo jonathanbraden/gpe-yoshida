@@ -1,5 +1,5 @@
-#define PERIODIC
-!#define INFINITE
+!#define PERIODIC
+#define INFINITE
 
 module Simulation
   use constants, only : dl, twopi
@@ -46,7 +46,7 @@ contains
     this%yGrid = [ ( (i_-1)*this%dx, i_=1,n) ] - 0.5_dl*len
 #elif defined(INFINITE)
     call initialize_transform_cheby_2d(this%tPair, (/n,n/), 1)
-    call transform_rational_cheby(this%tPair, len)
+    call transform_rational_cheby(this%tPair, (/ len, len /))
     this%xGrid = this%tPair%xGrid
     this%yGrid = this%tPair%yGrid
     this%dx = minval(abs(this%xGrid(2:)-this%xGrid(:n-1)))
@@ -54,6 +54,17 @@ contains
 !#ifdef SPECTRAL
     allocate( this%psi(1:n,1:n,1:2,1:nf) )
 !#endif
+
+    open(unit=99,file='xgrid.dat')
+    do i_=1,this%nx
+       write(99,*) this%xGrid(i_)
+    enddo
+    close(99)
+    open(unit=99,file='ygrid.dat')
+    do i_=1,this%ny
+       write(99,*) this%yGrid(i_)
+    enddo
+    close(99)
   end subroutine create_lattice
 
   subroutine destroy_lattice(this)
