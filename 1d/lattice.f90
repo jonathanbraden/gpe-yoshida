@@ -1,5 +1,4 @@
-!#define PERIODIC 1
-#define INFINITE 1
+#include "macros.h"
 
 module Simulation
   use constants, only : dl, twopi
@@ -12,10 +11,10 @@ module Simulation
   
   type Lattice
      real(dl), dimension(:,:,:), allocatable :: psi
+     real(dl), dimension(:), allocatable :: xGrid
      real(dl) :: time
      integer :: nlat, nFld
      real(dl) :: dx, lSize, dk
-     real(dl), dimension(:), allocatable :: xGrid
 !#ifdef SPECTRAL
 #if defined(PERIODIC)     
      type(transformPair1D) :: tPair
@@ -24,7 +23,7 @@ module Simulation
 #endif
 !#endif
   end type Lattice
-  
+
 contains
 
   subroutine create_lattice(this,n,len,nf)
@@ -95,14 +94,5 @@ contains
 
     write(fNum) this%psi(1:this%nlat,:,:)    
   end subroutine write_lattice_data
-  
-  real(dl) function gradient_energy_spectral(this,direct) result(ge)
-    type(Lattice), intent(inout) :: this
-    logical, intent(in) :: direct
-    integer :: n
-
-    n = this%nlat
-    ! Write this
-  end function gradient_energy_spectral
-  
+    
 end module Simulation

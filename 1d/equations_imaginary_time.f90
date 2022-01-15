@@ -12,8 +12,9 @@ module Equations_imag
   use Simulation
 
   implicit none
-
+ 
   integer, parameter :: n_terms = 3
+
   real(dl) :: nu, g_c, g
   real(dl) :: mu
 
@@ -21,6 +22,7 @@ module Equations_imag
   
 contains
 
+  ! This will already be defined, don't redefine it
   subroutine set_model_parameters(g_,gc_,nu_,mu_)
     real(dl), intent(in) :: g_, gc_, nu_, mu_
 
@@ -29,6 +31,7 @@ contains
     mu = mu_
   end subroutine set_model_parameters
 
+  ! This will already be defined, don't redefine it
   subroutine initialize_trap_potential(this, amp)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: amp
@@ -133,6 +136,7 @@ contains
     enddo
   end subroutine evolve_nonlinear_interaction
 
+  ! Fix this for multiple fields
   subroutine renorm_field(this)
     type(Lattice), intent(inout) :: this
 
@@ -145,10 +149,12 @@ contains
 #elif defined(INFINITE)
        norm = sum( (this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2)*this%tPair%quad_weights )
 #endif
-       this%psi = this%psi / sqrt(norm)
+       this%psi(XIND,:,i) = this%psi(XIND,:,i) / sqrt(norm)
     enddo
   end subroutine renorm_field
 
+  ! Fix this for the interacting field case
+  ! Currently just for nonlinear Schrodinger
   subroutine gradient_step(this,dtau)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dtau
@@ -205,7 +211,7 @@ contains
 #elif defined(INFINITE)
        call laplacian_cheby_1d_mapped(this%tPair)
 #endif
-       mu_loc = -0.5_dl*this%tPair%realSpace*this%psi(XIND,1,i)
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,i)
 
        this%tPair%realSpace = this%psi(XIND,2,i)
 #if defined(PERIODIC)

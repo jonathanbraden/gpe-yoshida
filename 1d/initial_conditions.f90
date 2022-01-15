@@ -5,6 +5,20 @@ module Initial_Conditions
 
 contains
 
+  subroutine imprint_relative_phase(this,phi,i1,i2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: phi
+    integer,intent(in) :: i1, i2
+    real(dl) :: amp
+
+    amp = 1._dl/2.**0.5
+    
+    this%psi(1:this%nlat,1,i1) = amp
+    this%psi(1:this%nlat,2,i1) = 0._dl
+    this%psi(1:this%nlat,1,i2) = amp*cos(phi)
+    this%psi(1:this%nlat,2,i2) = amp*sin(phi)
+  end subroutine imprint_relative_phase
+  
   subroutine imprint_gaussian(this, sig2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: sig2
@@ -13,7 +27,7 @@ contains
 
     this%psi = 0._dl
     do i_ = 1, this%nfld
-       this%psi(:,1,i_) = exp(-0.5*this%xGrid**2/sig2)/(0.5_dl*twopi*sig2)**0.25 !* sqrt(2._dl)*this%xGrid
+       this%psi(1:this%nlat,1,i_) = exp(-0.5*this%xGrid**2/sig2)/(0.5_dl*twopi*sig2)**0.25 !* sqrt(2._dl)*this%xGrid
     enddo
   end subroutine imprint_gaussian
 
@@ -81,9 +95,9 @@ contains
 
     rho = 1._dl
 
-    this%psi(:,1,1) = rho**0.5; this%psi(:,1,2) = 0._dl
+    this%psi(:,1,1) = rho**0.5; this%psi(:,2,1) = 0._dl
     this%psi(:,1,2) = this%psi(:,1,1)*cos(phase)
-    this%psi(:,2,2) = this%psi(:,1,2)*sin(phase)
+    this%psi(:,2,2) = this%psi(:,1,1)*sin(phase)
   end subroutine imprint_mean_relative_phase
 
   subroutine imprint_sine(this, wave_num, amp)
