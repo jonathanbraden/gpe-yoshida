@@ -32,7 +32,7 @@ contains
     t_loc = 0._dl
   end subroutine set_model_parameters
 
-  subroutine initialize_trap_potential(this, xGrid, amp, type)
+  subroutine initialize_trap_potential(this, amp, type)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(1:this%nlat) :: xGrid
     real(dl), intent(in) :: amp
