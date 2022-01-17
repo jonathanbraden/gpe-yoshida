@@ -71,6 +71,8 @@ contains
        this%psi(i_,1,1) = eta/cosh(eta*x)*cos(kappa*x)
        this%psi(i_,2,1) = eta/cosh(eta*x)*sin(kappa*x)
     enddo
+
+    ! mu is ???
   end subroutine imprint_bright_soliton
 
   subroutine imprint_gray_soliton(this,amp,phi)
@@ -85,6 +87,8 @@ contains
 
     this%psi(:,1,1) = amp*cos(phi)*tanh(amp*cos(phi)*(this%xGrid-x0))
     this%psi(:,2,1) = amp*sin(phi)
+
+    ! mu is ????
   end subroutine imprint_gray_soliton
   
   subroutine imprint_mean_relative_phase(this,phase)
@@ -98,6 +102,9 @@ contains
     this%psi(:,1,1) = rho**0.5; this%psi(:,2,1) = 0._dl
     this%psi(:,1,2) = this%psi(:,1,1)*cos(phase)
     this%psi(:,2,2) = this%psi(:,1,1)*sin(phase)
+
+    ! mu is g-nu around true vacuum
+    ! mus is g+nu around false vacuum
   end subroutine imprint_mean_relative_phase
 
   subroutine imprint_sine(this, wave_num, amp)

@@ -75,7 +75,7 @@ endif
 OBJS = constants.o fftw_mod_wtype.o fast_cheby.o lattice.o model_params.o random_field.o initial_conditions.o equations.o yoshida.o
 OBJS_PER = constants.o fftw_mod_wtype.o lattice.o random_field.o initial_conditions.o equations.o yoshida.o
 OBJS_INF = constants.o fftw_mod_wtype.o fast_cheby.o random_field.o lattice.o initial_conditions.o equations_infinite.o yoshida.o
-OBJS_BG = constants.o fftw_mod_wtype.o fast_cheby.o lattice.o initial_conditions.o equations_imaginary_time.o
+OBJS_BG = constants.o fftw_mod_wtype.o fast_cheby.o lattice.o model_params.o initial_conditions.o equations_imaginary_time.o
 
 gp: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-1d evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)

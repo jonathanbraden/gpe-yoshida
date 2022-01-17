@@ -1,3 +1,6 @@
+#include "macros.h"
+#define XIND 1:this%nlat
+
 module Model_Params
   use constants, only : dl
   use Simulation
@@ -75,5 +78,76 @@ contains
     enddo
     close(99)
   end subroutine initialize_trap_potential
-  
+
+    ! Fix this to compute integral properly for cheby calculation
+  real(dl) function chemical_potential(this) result(mu)
+    type(Lattice), intent(inout) :: this
+    
+    real(dl), dimension(1:this%nlat) :: rho2, mu_loc
+    integer :: i
+    real(dl) :: g_loc
+
+    mu = 0._dl
+    mu_loc = 0._dl
+    
+    do i=1,this%nfld
+       g_loc = g_self(i)
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,i)
+
+       this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,i)
+
+       mu_loc = mu_loc + v_trap*rho2 + g_loc*rho2**2
+    enddo
+#if defined(PERIODIC)
+    mu = this%dx*sum(mu_loc)
+#elif defined(INFINITE)
+    mu = sum(mu_loc*this%tPair%quad_weights)
+#endif
+  end function chemical_potential
+
+  real(dl) function energy(this) result(en)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nlat) :: rho2, en_loc
+    integer :: i, l
+    real(dl) :: g_loc
+
+    en = 0._dl; en_loc = 0._dl
+
+    do i=1,this%nfld
+       g_loc = g_self(i)
+       rho2 = this%psi(XIND,1,1)**2 + this%psi(XIND,2,i)**2
+
+       do l=1,2
+          this%tPair%realSpace = this%psi(XIND,l,i)
+#if defined(PERIODIC)
+          call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+          call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+          en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,l,i)
+       enddo
+       en_loc = en_loc + v_trap*rho2 + 0.5_dl*g_loc*rho2**2
+    enddo
+#if defined(PERIODIC)
+    en = this%dx*sum(en_loc)
+#elif defined(INFINITE)
+    en = sum(en_loc*this%tPair%quad_weights)
+#endif
+  end function energy
+    
 end module model_params
