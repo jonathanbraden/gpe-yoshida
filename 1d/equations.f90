@@ -26,7 +26,29 @@ contains
    
     select case (term)
     case (1,-1)
-       call evolve_gradient_real(this,dt)
+       call evolve_gradient_trap_real(this,dt)
+    case (2)
+       call evolve_self_scattering(this,dt) ! fix this
+    case (3)
+       !call evolve_nu_1(this,dt)  ! check this
+       call evolve_interspecies_conversion_single(this,dt,1)
+    case (4)
+       !call evolve_nu_2(this,dt)  ! check this
+       !call evolve_interspecies_conversion_single(this,dt,2)
+    case (5)
+       call evolve_gradient_trap_imag(this,dt)
+    end select
+    t_loc(term) = t_loc(term) + dt
+  end subroutine split_equations
+  
+  subroutine split_equations_gpe(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+   
+    select case (term)
+    case (1,-1)
+       call evolve_gradient_trap_real(this,dt)
     case (2)
        call evolve_self_scattering(this,dt) ! fix this
     case (3)
@@ -36,31 +58,7 @@ contains
        !call evolve_nu_2(this,dt)  ! check this
        call evolve_interspecies_conversion_single(this,dt,2)
     case (5)
-       call evolve_gradient_imag(this,dt)
-    end select
-    t_loc(term) = t_loc(term) + dt
-  end subroutine split_equations
-
-  
-  ! This isn't tested yet
-  subroutine split_equations_gpe(this,dt,term)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-    integer, intent(in) :: term
-   
-    select case (term)
-    case (1,-1)
-       call evolve_gradient_real(this,dt)
-    case (2)
-       call evolve_self_scattering(this,dt) ! fix this
-    case (3)
-       !call evolve_nu_1(this,dt)  ! check this
-       !call evolve_interspecies_conversion_single(this,dt,1)
-    case (4)
-       !call evolve_nu_2(this,dt)  ! check this
-       !call evolve_interspecies_conversion_single(this,dt,2)
-    case (5)
-       call evolve_gradient_imag(this,dt)
+       call evolve_gradient_trap_imag(this,dt)
     end select
     t_loc(term) = t_loc(term) + dt
   end subroutine split_equations_gpe

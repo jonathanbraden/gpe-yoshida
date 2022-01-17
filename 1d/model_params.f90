@@ -23,6 +23,12 @@ module Model_Params
 
 contains
 
+  subroutine set_chemical_potential(mu_)
+    real(dl), intent(in) :: mu_
+
+    mu = mu_
+  end subroutine set_chemical_potential
+  
   subroutine set_model_parameters(g_,gc_,nu_,mu_,nf)
     real(dl), intent(in) :: g_, gc_, nu_, mu_
     integer, intent(in) :: nf
