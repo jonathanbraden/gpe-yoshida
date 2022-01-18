@@ -1,12 +1,17 @@
 *~
 
+# Latex Files
+*.log
+*.aux
+
 # Fortran files
 *.o
 *.mod
 
-# Binary output
+# Binary and other output
 *.bin
 *.pdf
+*.dat
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
