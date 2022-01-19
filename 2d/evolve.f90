@@ -10,20 +10,23 @@ program Evolve_GPE
   type(Lattice) :: mySim
   integer :: i
   real(dl) :: dt
-  
+  integer :: nf
+
+  nf = 1
   !  call create_lattice(mySim, 256, 64._dl, 1)
-  call create_lattice(mySim,128,4._dl,1)
-  call set_model_parameters(1.,0.,0.,1.)
+  call create_lattice(mySim,128,4._dl,nf)
+  call set_model_parameters(1.,0.,0.,1.,nf)
 
-  call imprint_gray_soliton(mySim,1.,0.)
+!  call imprint_gray_soliton(mySim,1.,0.)
 !  call imprint_black_soliton_pair(mySim,8.)
+!  call add_white_noise(mySim,0.02)
 !  call imprint_bright_soliton(mySim,2.,3.)
-
-  call add_white_noise(mySim,0.02)
+  call imprint_vortex(mySim,0._dl,0._dl)
+  
   call write_lattice_data(mySim,50)
 
   dt = mySim%dx**2/16._dl
-  do i=1,1000
+  do i=1,10
      call step_lattice(mySim,dt,20)
      call write_lattice_data(mySim,50)
   enddo

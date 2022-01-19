@@ -1,5 +1,4 @@
-!#define PERIODIC
-#define INFINITE
+#include "macros.h"
 
 module Simulation
   use constants, only : dl, twopi
