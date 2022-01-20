@@ -25,13 +25,6 @@ module yoshida
        0.33462491824529818378495798_dl, &
        0.31529309239676659663205666_dl  &
        /) 
-
-  type Yoshida_Integrator
-     integer :: order
-     integer :: n_terms
-!   contains
-!     procedure :: split => null()
-  end type Yoshida_Integrator
   
 contains
     
@@ -41,29 +34,25 @@ contains
   !>@param[inout] this - The Lattice to advance
   !>@param[in]  dt - Step size dt
   !>@param[in]  nstep - Number of steps to take
-  subroutine step_lattice(this,dt,nstep)
+  subroutine step_lattice(this,dt,nstep,order)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: nstep
+    integer, intent(in) :: order
 
-    call symp8(this,dt,nstep)
-    this%time = this%time + dt*nstep
+    select case (order)
+    case (2)
+       call symp2(this,dt,nstep)
+    case (4)
+       call symp4(this,dt,nstep)
+    case (6)
+       call symp6(this,dt,nstep)
+    case (8)
+       call symp8(this,dt,nstep)
+    case default
+       call symp6(this,dt,nstep)
+    end select
   end subroutine step_lattice
-
-  subroutine yoshida_scheme(this,dt,nstep,w_coeffs)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-    integer, intent(in) :: nstep
-    real(dl), dimension(:), intent(in) :: w_coeffs
-
-    integer :: n_stage, i
-
-    n_stage = size(w_coeffs)
-
-    do i=-n_stage,n_stage
-       ! Fill in appropriate stepping here
-    enddo    
-  end subroutine yoshida_scheme
 
   !>@brief
   !> Second order accurate symplectic step with fusion
@@ -88,7 +77,7 @@ contains
   !
   !> This version doesn't distinguish if we are using the first
   !> or second occurence of an operator
-  subroutine symp_o2_step_(this,dt,w1,w2)
+  subroutine symp_o2_step_no_direction(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt, w1, w2
 
@@ -102,7 +91,7 @@ contains
        call split_equations(this, 0.5_dl*w1*dt,i)
     enddo
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
-  end subroutine symp_o2_step_
+  end subroutine symp_o2_step_no_direction
   
   subroutine yoshida2(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this

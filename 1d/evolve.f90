@@ -13,7 +13,9 @@ program Evolve_GPE
   integer :: i, nf
   real(dl) :: dx, dt, alpha
   real(dl), dimension(:), allocatable :: psi_i
+  integer :: ord
 
+  ord = 4
   nf = 2
   call create_lattice(mySim,256,10._dl,nf)
   call set_model_parameters(250.,0.,0._dl,0._dl,nf)  
@@ -35,7 +37,7 @@ program Evolve_GPE
   dt = dx**2/alpha
   call write_lattice_data(mySim,50)
   do i=1,100
-     call step_lattice(mySim,dt,25)
+     call step_lattice(mySim,dt,25,ord)
      call write_lattice_data(mySim,50)
   enddo
   
