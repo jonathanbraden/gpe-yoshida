@@ -1,4 +1,4 @@
-#define XIND 1:n
+#define XIND 1:this%nlat
 #include "macros.h"
 
 module Equations
@@ -13,8 +13,8 @@ module Equations
 
   implicit none
 
+! Need to further modularise these so they can be called by the yoshida integrator
   integer, parameter :: n_terms = 5
-
   real(dl), dimension(1:n_terms) :: t_loc
   
 contains
@@ -23,25 +23,26 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: term
-   
-    select case (term)
-    case (1,-1)
+
+    integer :: term_abs
+    term_abs = abs(term)
+    
+    select case (term_abs)
+    case (1)
        call evolve_gradient_trap_real(this,dt)
     case (2)
        call evolve_self_scattering(this,dt) ! fix this
     case (3)
-       !call evolve_nu_1(this,dt)  ! check this
        call evolve_interspecies_conversion_single(this,dt,1)
     case (4)
-       !call evolve_nu_2(this,dt)  ! check this
-       !call evolve_interspecies_conversion_single(this,dt,2)
+       call evolve_interspecies_conversion_single(this,dt,2)
     case (5)
        call evolve_gradient_trap_imag(this,dt)
     end select
-    t_loc(term) = t_loc(term) + dt
+    t_loc(abs(term)) = t_loc(abs(term)) + dt
   end subroutine split_equations
   
-  subroutine split_equations_gpe(this,dt,term)
+  subroutine split_equations_gpe_2field(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: term
@@ -52,17 +53,32 @@ contains
     case (2)
        call evolve_self_scattering(this,dt) ! fix this
     case (3)
-       !call evolve_nu_1(this,dt)  ! check this
        call evolve_interspecies_conversion_single(this,dt,1)
     case (4)
-       !call evolve_nu_2(this,dt)  ! check this
        call evolve_interspecies_conversion_single(this,dt,2)
     case (5)
        call evolve_gradient_trap_imag(this,dt)
     end select
-    t_loc(term) = t_loc(term) + dt
-  end subroutine split_equations_gpe
-  
+    t_loc(abs(term)) = t_loc(abs(term)) + dt
+  end subroutine split_equations_gpe_2field
+
+  subroutine split_equations_gpe_nfield(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+
+    select case (term)
+    case (1,-1)
+       call evolve_gradient_trap_real(this,dt)
+    case (2,-2)
+       call evolve_self_scattering(this,dt)
+    case(3,-3)
+       call evolve_interspecies_conversion(this,dt,(term > 0))
+    case(4,-4)
+       call evolve_gradient_trap_imag(this,dt)
+    end select
+  end subroutine split_equations_gpe_nfield
+
   subroutine split_equations_schrodinger(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -75,7 +91,22 @@ contains
        call evolve_gradient_trap_imag(this,dt)
     end select
   end subroutine split_equations_schrodinger
-  
+    
+  subroutine split_equations_nlse_3_term(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+
+    select case (term)
+    case(1)
+       call evolve_gradient_real(this,dt)
+    case(2)
+       call evolve_self_scattering(this,dt)
+    case(3)
+       call evolve_gradient_imag(this,dt)
+    end select
+  end subroutine split_equations_nlse_3_term
+
   subroutine split_equations_nlse_w_trap(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -91,21 +122,6 @@ contains
     end select
   end subroutine split_equations_nlse_w_trap
   
-  subroutine split_equations_nlse_3_term(this,dt,term)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-    integer, intent(in) :: term
-
-    select case (term)
-    case(1)
-       call evolve_gradient_real(this,dt)
-    case(2)
-       !call evolve_potential(this,dt)
-    case(3)
-       call evolve_gradient_imag(this,dt)
-    end select
-  end subroutine split_equations_nlse_3_term
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Building Block Splits of Equations of Motion
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
@@ -232,20 +248,6 @@ contains
   end subroutine evolve_self_scattering
 
   !>@brief
-  !> Evolve intraspecies 2->2 scattering term using complex rotation
-  subroutine evolve_self_scattering_rotation(this,dt)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-
-    real(dl), dimension(1:this%nfld) :: g_cur
-    real(dl), dimension(1:this%nfld) :: nu_cur
-    integer :: i_,n
-
-    n = this%nlat
-    ! write this and test conservation properties
-  end subroutine evolve_self_scattering_rotation
-
-  !>@brief
   !> Currently being written.  No interspecies 2->2 scattering yet.
   !>
   !> With the assumptions currently being made, this can't appear as either the first or last term in the splitting scheme
@@ -278,20 +280,50 @@ contains
     real(dl), intent(in) :: dt
     integer, intent(in) :: fld_ind
 
-    real(dl), dimension(1:this%nfld) :: nu_cur
     real(dl), dimension(1:this%nlat,1:2) :: dpsi
-    integer :: n, l
+    real(dl), dimension(1:this%nfld) :: nu_cur
+    integer :: l
 
-    n = this%nlat
     nu_cur = nu(:,fld_ind)
 
     dpsi = 0._dl
     do l=1,this%nfld
-       dpsi(1:n,1) = dpsi(1:n,1) - nu_cur(l) * dt * this%psi(XIND,2,l)
-       dpsi(1:n,2) = dpsi(1:n,2) + nu_cur(l) * dt * this%psi(XIND,1,l)
+       dpsi(XIND,1) = dpsi(XIND,1) - nu_cur(l) * dt * this%psi(XIND,2,l)
+       dpsi(XIND,2) = dpsi(XIND,2) + nu_cur(l) * dt * this%psi(XIND,1,l)
     enddo
-    this%psi(1:n,1:2,fld_ind) = this%psi(1:n,1:2,fld_ind) + dpsi  
+    this%psi(XIND,1:2,fld_ind) = this%psi(XIND,1:2,fld_ind) + dpsi  
   end subroutine evolve_interspecies_conversion_single
+
+  !>@brief
+  !> Evolve the interspecies conversion terms, stacked individually for each field
+  subroutine evolve_interspecies_conversion(this,dt,fwd)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    logical, intent(in) :: fwd
+
+    real(dl), dimension(1:this%nlat,1:2) :: dpsi
+    real(dl), dimension(1:this%nfld) :: nu_cur
+    integer :: n,l,m
+    integer :: st, en, step
+
+    if (fwd) then
+       st = 1; en = this%nfld; step = 1
+    else
+       st = this%nfld; en = 1; step = -1
+    endif
+       
+    n = this%nlat
+
+    do m = st, en, step
+       nu_cur = nu(:,m)
+       dpsi = 0._dl
+       do l=1,this%nfld
+          dpsi(XIND,1) = dpsi(XIND,1) - nu_cur(l) * dt * this%psi(XIND,2,l)
+          dpsi(XIND,2) = dpsi(XIND,2) + nu_cur(l) * dt * this%psi(XIND,1,l)
+       enddo
+       this%psi(XIND,1:2,m) = this%psi(XIND,1:2,m) + dpsi
+    enddo
+  end subroutine evolve_interspecies_conversion
   
   subroutine evolve_interspecies_scattering_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this
@@ -300,21 +332,53 @@ contains
 
     real(dl), dimension(1:this%nlat) :: phase_rot, temp
     real(dl), dimension(1:this%nfld) :: g_cur
-    integer :: l,n
+    integer :: l
 
-    n = this%nlat
     g_cur = g_cross(:,fld_ind)
 
     phase_rot = 0._dl
     do l=1,this%nfld
-       phase_rot(1:n) = phase_rot(1:n) + g_cur(l)*( this%psi(1:n,1,l)**2 + this%psi(1:n,2,l)**2 )
+       phase_rot(1:this%nlat) = phase_rot(1:this%nlat) + g_cur(l)*( this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2 )
     enddo
     phase_rot = phase_rot*dt
 
-    temp = this%psi(1:n,1,fld_ind)
-    this%psi(1:n,1,fld_ind) = this%psi(1:n,1,fld_ind)*cos(phase_rot) + this%psi(1:n,2,fld_ind)*sin(phase_rot)
-    this%psi(1:n,2,fld_ind) = this%psi(1:n,2,fld_ind)*cos(phase_rot) - temp(1:n)*sin(phase_rot)
+    temp = this%psi(XIND,1,fld_ind)
+    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind)*cos(phase_rot) + this%psi(XIND,2,fld_ind)*sin(phase_rot)
+    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind)*cos(phase_rot) - temp(1:this%nlat)*sin(phase_rot)
   end subroutine evolve_interspecies_scattering_single
+
+  ! This is clearly wrong since dt doesn't get used
+  subroutine evolve_interspecies_scattering_full(this,dt,fwd)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    logical, intent(in) :: fwd
+
+    real(dl), dimension(1:this%nlat) :: phase_rot, temp
+    real(dl), dimension(1:this%nfld) :: g_cur
+    integer :: m,l
+    integer :: st, en, step
+    
+    if (fwd) then
+       st = 1; en = this%nfld; step = 1
+    else
+       st = this%nfld; en = 1; step = -1
+    endif
+
+    do m = st, en, step
+       g_cur = g_cross(:,m)
+       phase_rot = 0._dl
+       do l=1,this%nfld
+          phase_rot(1:this%nlat) = phase_rot(1:this%nlat) &
+               + g_cur(l)*( this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2 )
+       enddo
+       phase_rot = phase_rot * dt
+
+       temp = this%psi(XIND,1,m)
+       this%psi(XIND,1,m) = cos(phase_rot)*this%psi(XIND,1,m) + sin(phase_rot)*this%psi(XIND,2,m)
+       this%psi(XIND,2,m) = cos(phase_rot)*this%psi(XIND,2,m) - sin(phase_rot)*temp
+    enddo
+  end subroutine evolve_interspecies_scattering_full
+
   
   !>@brief
   !> Evolve full scattering including inter and intra-species for a single species
@@ -325,89 +389,54 @@ contains
 
     real(dl), dimension(1:this%nlat) :: phase_rot, temp
     real(dl), dimension(1:this%nfld) :: g_cur
-    integer :: l,n
+    integer :: l
 
-    n = this%nlat
     g_cur = g_cross(:,fld_ind)
     g_cur(fld_ind) = g_self(fld_ind)
 
     phase_rot = 0._dl
     do l=1,this%nfld
-       phase_rot(1:n) = phase_rot(1:n) &
-            + g_cur(l)*( this%psi(1:n,1,l)**2+this%psi(1:n,2,l)**2 )
+       phase_rot(1:this%nlat) = phase_rot(1:this%nlat) &
+            + g_cur(l)*( this%psi(XIND,1,l)**2+this%psi(XIND,2,l)**2 )
     enddo
     phase_rot = phase_rot*dt
 
-    temp = this%psi(1:n,1,fld_ind)
-    this%psi(1:n,1,fld_ind) = this%psi(1:n,1,fld_ind)*cos(phase_rot) + this%psi(1:n,2,fld_ind)*sin(phase_rot)
-    this%psi(1:n,2,fld_ind) = this%psi(1:n,2,fld_ind)*cos(phase_rot) - temp*cos(phase_rot)
+    temp = this%psi(XIND,1,fld_ind)
+    this%psi(XIND,1,fld_ind) = this%psi(XIND,1,fld_ind)*cos(phase_rot) + this%psi(XIND,2,fld_ind)*sin(phase_rot)
+    this%psi(XIND,2,fld_ind) = this%psi(XIND,2,fld_ind)*cos(phase_rot) - temp*cos(phase_rot)
   end subroutine evolve_scattering_single
+
+  subroutine evolve_scattering_full(this,dt,fwd)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    logical, intent(in) :: fwd
+
+    real(dl), dimension(1:this%nlat) :: phase_rot, temp
+    real(dl), dimension(1:this%nfld) :: g_cur
+    integer :: st, en, step
+    integer :: l,m
     
-  subroutine evolve_interspecies_scattering_forward(this,dt)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-
-    real(dl), dimension(1:this%nlat) :: phase_rot, temp
-    real(dl), dimension(1:this%nfld) :: g_cur
-    integer :: i_,l,n
-
-    n = this%nlat
-
-    do i_=1,this%nfld
-       g_cur = g_cross(:,i_)
-       phase_rot = 0._dl
-       do l=1,this%nfld
-          phase_rot(1:n) = phase_rot(1:n) &
-               + g_cur(l)*( this%psi(1:n,1,l)**2 + this%psi(1:n,2,l)**2 )
-
-          temp = this%psi(1:n,1,i_)
-          this%psi(1:n,1,i_) = cos(phase_rot)*this%psi(1:n,1,i_) + sin(phase_rot)*this%psi(1:n,2,i_)
-          this%psi(1:n,2,i_) = cos(phase_rot)*this%psi(1:n,2,i_) - sin(phase_rot)*temp
-       enddo
-    enddo
-  end subroutine evolve_interspecies_scattering_forward
-
-  subroutine evolve_interspecies_scattering_backward(this,dt)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-
-    real(dl), dimension(1:this%nlat) :: phase_rot, temp
-    real(dl), dimension(1:this%nfld) :: g_cur
-    integer :: i_,l,n
-    integer :: start, end, step
-    logical :: forward
-
-    forward = .false.
-    if (forward) then
-       start = 1; end = this%nfld; step = 1
+    if (fwd) then
+       st = 1; en = this%nlat; step = 1
     else
-       start = this%nlat; end = 1; step = -1
+       st = this%nlat; en = 1; step = -1
     endif
-    
-    n = this%nlat
 
-    do i_ = this%nfld, 1, -1
-       g_cur = g_cross(:,i_)
+    do m=st,en,step
+       g_cur = g_cross(:,m); g_cur(m) = g_self(m)
+
        phase_rot = 0._dl
        do l=1,this%nfld
-          phase_rot(1:n) = phase_rot(1:n) &
-               + g_cur(l)*( this%psi(1:n,1,l)**2 + this%psi(1:n,2,l)**2 )
-
-          temp = this%psi(1:n,1,i_)
-          this%psi(1:n,1,i_) = cos(phase_rot)*this%psi(1:n,1,i_) + sin(phase_rot)*this%psi(1:n,2,i_)
-          this%psi(1:n,2,i_) = cos(phase_rot)*this%psi(1:n,2,i_) - sin(phase_rot)*temp
+          phase_rot(1:this%nlat) = phase_rot(1:this%nlat) + g_cur(l) * (this%psi(XIND,1,l)**2 +this%psi(XIND,2,l)**2)
        enddo
-    enddo
-  end subroutine evolve_interspecies_scattering_backward
-  
-  !>@brief
-  !> Solve for the nonlinear local dynamics (excluding the potential) using GL10 integrator
-  subroutine evolve_local_dynamics(this,dt)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
+       phase_rot = phase_rot * dt
 
-  end subroutine evolve_local_dynamics
-  
+       temp = this%psi(XIND,1,m)
+       this%psi(XIND,1,m) = this%psi(XIND,1,m)*cos(phase_rot) + this%psi(XIND,2,m)*sin(phase_rot)
+       this%psi(XIND,2,m) = this%psi(XIND,2,m)*cos(phase_rot) - temp*cos(phase_rot)
+    enddo      
+  end subroutine evolve_scattering_full
+ 
 #ifdef OLD
   !>@brief
   !> Evolve the 2->2 self-scattering part of the equations

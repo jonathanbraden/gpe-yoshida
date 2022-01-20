@@ -14,9 +14,9 @@ program Evolve_GPE
   real(dl) :: dx, dt, alpha
   real(dl), dimension(:), allocatable :: psi_i
 
-  nf = 1
+  nf = 2
   call create_lattice(mySim,256,10._dl,nf)
-  call set_model_parameters(250.,0.,0.,0._dl,nf)  
+  call set_model_parameters(250.,0.,0._dl,0._dl,nf)  
   call initialize_trap_potential(mySim, 1._dl,3)
 
   call imprint_gaussian(mySim,1._dl)
@@ -26,8 +26,10 @@ program Evolve_GPE
 !  call imprint_mean_relative_phase(mySim,0.01_dl*twopi)
 
   call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15)
-  call set_chemical_potential(chemical_potential(mySim))
   
+  call set_model_parameters(250.,0.,250.*0.01,0._dl,nf)
+  call set_chemical_potential(chemical_potential(mySim))
+
   dx = mySim%dx
   alpha = 8.
   dt = dx**2/alpha

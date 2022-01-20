@@ -24,7 +24,7 @@ contains
     real(dl) :: dtau, err_psi, err_grad, err
     integer :: i
     integer, parameter :: maxit = 200
-    real(dl), parameter :: tol = 1.e-15
+    real(dl), parameter :: tol = 5.e-15
     logical, dimension(1:2) :: check_pt
 
     check_pt = .false.
@@ -32,11 +32,12 @@ contains
     dtau = this%dx**2 / 8._dl
     do i=1,maxit
        err = gradient_flow(this,dtau,50)
+       print*,"err is ",err
        
        if (check_pt(1)) print*,"Error logging not implemented"
        if (check_pt(2)) print*,"Field logging not implemented"
        
-       if (err < 1.e-15) then
+       if (err < tol) then
           print*,"converged in ",i," steps of 50"
           exit
        endif
@@ -53,11 +54,112 @@ contains
     
     psi_prev(:,:,:) = this%psi(XIND,:,:)
     do i=1,nsteps
-       call gradient_step(this,dtau)
+       call gradient_step_w_nu(this,dtau)
        call renorm_field(this)
     enddo
     error = maxval(abs(this%psi(XIND,:,:)-psi_prev))
   end function gradient_flow
+
+  ! Fix this for the interacting field case
+  ! Currently just for nonlinear Schrodinger
+  subroutine gradient_step(this,dtau)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dtau
+
+    integer :: i
+    real(dl), dimension(1:this%nlat) :: rho2
+    real(dl) :: g_loc
+
+    do i=1,this%nfld
+       g_loc = g_self(i)
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,1,i) ) *dtau
+
+       
+       this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i) - g_loc*rho2*this%psi(XIND,2,i) ) * dtau
+    enddo
+       
+  end subroutine gradient_step
+
+  ! This one isn't converging to a solution yet
+  subroutine gradient_step_w_nu(this,dtau)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dtau
+
+    integer :: i,l
+    real(dl), dimension(XIND) :: rho2
+    real(dl), dimension(XIND,1:2,1:this%nfld) :: psi_cur
+    real(dl) :: g_loc, nu_loc(1:this%nfld)
+
+    psi_cur(XIND,1:2,:) = this%psi(XIND,1:2,:)
+
+    do i=1,this%nfld
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
+       g_loc = g_self(i)
+
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,1,i) ) * dtau
+
+       this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i) - g_loc*rho2*this%psi(XIND,2,i) ) * dtau
+    enddo
+
+    do i=1,this%nfld
+       nu_loc = nu(:,i)
+       do l=1,this%nfld
+          this%psi(XIND,1,i) = this%psi(XIND,1,i) + nu_loc(l) * dtau * psi_cur(XIND,2,l)
+          this%psi(XIND,2,i) = this%psi(XIND,2,i) - nu_loc(l) * dtau * psi_cur(XIND,1,l)
+       enddo
+    enddo
+    
+  end subroutine gradient_step_w_nu
+
+  ! Fix this for multiple fields
+  subroutine renorm_field(this)
+    type(Lattice), intent(inout) :: this
+
+    real(dl) :: norm, norm_loc
+    integer :: i
+
+    norm = 0._dl
+    do i=1,this%nfld
+#if defined(PERIODIC)
+       norm_loc = sum(this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2) * this%dx
+#elif defined(INFINITE)
+       norm_loc = sum( (this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2)*this%tPair%quad_weights )
+#endif
+       norm = norm + norm_loc
+    enddo
+    this%psi(XIND,1:2,1:this%nfld) = this%psi(XIND,1:2,1:this%nfld) / sqrt(norm) 
+  end subroutine renorm_field
   
   subroutine split_equations_bg(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -78,7 +180,7 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i, j
+    integer :: i
 
     do i = 1,this%nFld
        this%tPair%realSpace = this%psi(XIND,1,i)
@@ -119,58 +221,5 @@ contains
        this%psi(XIND,2,i) = this%psi(XIND,2,i)*sqrt(rho2)
     enddo
   end subroutine evolve_nonlinear_interaction
-
-  ! Fix this for multiple fields
-  subroutine renorm_field(this)
-    type(Lattice), intent(inout) :: this
-
-    real(dl) :: norm
-    integer :: i
-    
-    do i=1,this%nfld
-#if defined(PERIODIC)
-       norm = sum(this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2) * this%dx
-#elif defined(INFINITE)
-       norm = sum( (this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2)*this%tPair%quad_weights )
-#endif
-       this%psi(XIND,:,i) = this%psi(XIND,:,i) / sqrt(norm)
-    enddo
-  end subroutine renorm_field
-
-  ! Fix this for the interacting field case
-  ! Currently just for nonlinear Schrodinger
-  subroutine gradient_step(this,dtau)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dtau
-
-    integer :: i
-    real(dl), dimension(1:this%nlat) :: rho2
-    real(dl) :: g_loc
-
-    do i=1,this%nfld
-       g_loc = g_self(i)
-       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
-       
-       this%tPair%realSpace = this%psi(XIND,1,i)
-#if defined(PERIODIC)
-       call laplacian_1d_wtype(this%tPair, this%dk)
-#elif defined(INFINITE)
-       call laplacian_cheby_1d_mapped(this%tPair)
-#endif
-       this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
-            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i) - g_loc*rho2*this%psi(XIND,1,i) ) *dtau
-
-       
-       this%tPair%realSpace = this%psi(XIND,2,i)
-#if defined(PERIODIC)
-       call laplacian_1d_wtype(this%tPair, this%dk)
-#elif defined(INFINITE)
-       call laplacian_cheby_1d_mapped(this%tPair)
-#endif
-       this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
-            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i) - g_loc*rho2*this%psi(XIND,2,i) ) * dtau
-    enddo
-       
-  end subroutine gradient_step
   
 end module Equations_Imag

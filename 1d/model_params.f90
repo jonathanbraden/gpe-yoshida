@@ -33,7 +33,7 @@ contains
     real(dl), intent(in) :: g_, gc_, nu_, mu_
     integer, intent(in) :: nf
 
-    integer :: i_,j_
+    integer :: i_
     
     if (allocated(g_self))  deallocate(g_self)
     if (allocated(g_cross)) deallocate(g_cross)
@@ -57,7 +57,6 @@ contains
 
   subroutine initialize_trap_potential(this, amp, type)
     type(Lattice), intent(inout) :: this
-    real(dl), dimension(1:this%nlat) :: xGrid
     real(dl), intent(in) :: amp
     integer, intent(in), optional :: type
 

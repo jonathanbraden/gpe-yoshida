@@ -38,9 +38,16 @@ contains
 
     this%psi = 0._dl
     do i_ = 1,this%nfld
-       !this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
-       this%psi(:,1,i_) = 1._dl-tanh(this%xGrid)**2 ! ground state for lam=2
-       !this%psi(:,1,i_) = tanh(this%xGrid)*sqrt(1._dl-tanh(this%xGrid)**2) ! first excited state for lam = 2
+       select case (m)
+       case (11)
+          this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
+       case (21) ! ground state for lam = 2
+          this%psi(:,1,i_) = 1._dl-tanh(this%xGrid)**2
+       case (22) ! first excited state for lam = 2
+          this%psi(:,1,i_) = tanh(this%xGrid)*sqrt(1._dl-tanh(this%xGrid)**2)
+       case default
+          this%psi(:,1,i_) = -sqrt(1._dl-tanh(this%xGrid)**2)
+       end select
     enddo
   end subroutine imprint_sech_eigen
   
@@ -79,7 +86,6 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: amp, phi
 
-    integer :: i_
     real(dl) :: x0
 
     x0 = -4._dl

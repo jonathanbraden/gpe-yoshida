@@ -15,13 +15,11 @@ module Simulation
      real(dl) :: time
      integer :: nlat, nFld
      real(dl) :: dx, lSize, dk
-!#ifdef SPECTRAL
 #if defined(PERIODIC)     
      type(transformPair1D) :: tPair
 #elif defined(INFINITE)
      type(chebyshevPair1D) :: tPair
 #endif
-!#endif
   end type Lattice
 
 contains
@@ -30,26 +28,28 @@ contains
     type(Lattice), intent(out) :: this
     integer, intent(in) :: n, nf
     real(dl), intent(in) :: len
+#if defined(PERIODIC)
     integer :: i_
+#endif
     
     this%time = 0._dl
     this%nlat = n; this%lSize = len
     this%nFld = nf
-    this%dx = len/dble(n); this%dk = twopi/len
 
     allocate(this%xGrid(1:n))
-!#ifdef SPECTRAL
-#if defined(PERIODIC)    
+
+#if defined(PERIODIC)
+    this%dx = len/dble(n); this%dk = twopi/len
     call initialize_transform_1d(this%tPair, n)
     this%xGrid = [ ( this%dx*dble(i_-1)-0.5_dl*this%lSize , i_ = 1,n ) ] 
 #elif defined(INFINITE)
     call initialize_transform_cheby_1d(this%tPair,n,1)
     call transform_rational_cheby(this%tPair,len)
     this%xGrid = this%tPair%xGrid
-    this%dx = minval(abs(this%xGrid(2:)-this%xGrid(:this%nlat-1)))
-    print*,"dx is ",this%dx
+    this%dx = minval( abs( this%xGrid(2:)-this%xGrid(:this%nlat-1) ) )
+    this%dk = -1.
 #endif
-!#endif
+
 !#ifdef SPECTRAL
     allocate( this%psi(1:n,1:2,1:nf) )
 !#else

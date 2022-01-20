@@ -16,9 +16,9 @@ module yoshida
        /)
 
   real(dl), dimension(0:7), parameter :: w_o8 = (/ &
-       0._dl, &  ! Fix this one
-       0.74167036435061295344822780_dl, &
-       -0.40910082580003159399730010_dl, &
+       0._dl, &  ! Fix this one                            ! w0
+       0.74167036435061295344822780_dl, &                  ! w1
+       -0.40910082580003159399730010_dl, &                 ! w2
        0.19075471029623837995387626_dl, &
        -0.57386247111608226665638733_dl, &
        0.29906418130365592384446354_dl, &
@@ -70,6 +70,27 @@ contains
   subroutine symp_o2_step(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt, w1, w2
+    
+    integer :: i
+
+    do i=2,n_terms-1
+       call split_equations(this, 0.5_dl*w1*dt, i)
+    enddo
+    call split_equations(this, w1*dt, n_terms)
+    do i=n_terms-1,2,-1
+       call split_equations(this, 0.5_dl*w1*dt,-i) ! sign flip in case we want to merge operators elsewhere
+    enddo
+    call split_equations(this,0.5_dl*(w1+w2)*dt,1) 
+  end subroutine symp_o2_step
+
+  !>@brief
+  !> Second order accurate symplectic step with fusion
+  !
+  !> This version doesn't distinguish if we are using the first
+  !> or second occurence of an operator
+  subroutine symp_o2_step_(this,dt,w1,w2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt, w1, w2
 
     integer :: i
 
@@ -81,7 +102,7 @@ contains
        call split_equations(this, 0.5_dl*w1*dt,i)
     enddo
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
-  end subroutine symp_o2_step
+  end subroutine symp_o2_step_
   
   subroutine yoshida2(this,dt,w1,w2)
     type(Lattice), intent(inout) :: this
