@@ -13,8 +13,7 @@ module Equations
   implicit none
 
   integer, parameter :: n_terms = 3
-!  real(dl), dimension(:,:), allocatable :: v_trap
-  
+ 
 contains
     
   subroutine initialize_trap(this, amp, type)
@@ -24,32 +23,32 @@ contains
 
     integer :: i, j 
 
-    if (allocate(v_trap)) deallocate(v_trap)
-    allocate(v_trap(1:this%nx,1:this%ny))
+    if (allocated(this%v_trap)) deallocate(this%v_trap)
+    allocate(this%v_trap(1:this%nx,1:this%ny))
 
     select case (type)
     case (1)
-       v_trap = 0._dl
+       this%v_trap = 0._dl
     case(2)
-       v_trap = 0._dl
+       this%v_trap = 0._dl
     case(3)
        do j=1,this%ny
-          v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(:)**2),32.)
+          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(j)**2),32.)
        enddo
     case default
-       v_trap = 0._dl
+       this%v_trap = 0._dl
     end select
 
     open(unit=99,file='trap.bin',access='stream')
-    write(99) v_trap
+    write(99) this%v_trap
     close(99)
     open(unit=99,file='xgrid.dat')
-    do i=1,nx
+    do i=1,this%nx
        write(99,*) this%xGrid(i)
     enddo
     close(99)
     open(unit=99,file='ygrid.dat')
-    do i=1,ny
+    do i=1,this%ny
        write(99,*) this%yGrid(i)
     enddo
     close(99)
@@ -197,7 +196,7 @@ contains
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        this%psi(XIND,2,i_) = this%psi(XIND,2,i_)   &
-            + ( 0.5_dl*this%tPair%realSpace(XIND) - v_trap(XIND) )*dt
+            + ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND) )*dt
     enddo
   end subroutine evolve_gradient_trap_real
 
@@ -215,10 +214,12 @@ contains
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        this%tPair%realSpace(XIND) = this%psi(XIND,1,i_) &
-            - ( 0.5_dl*this%tPair%realSpace(XIND) - v_trap(XIND) )*dt
+            - ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND) )*dt
     enddo
   end subroutine evolve_gradient_trap_imag
-    
+
+  ! Performance testing : Try storing the sin / cos in a separate array to see if this improves vectorization
+  ! Also try using a loop with OpenMP
   subroutine evolve_self_scattering(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -227,9 +228,10 @@ contains
     real(dl) :: g_loc, mu_loc
     real(dl), dimension(XIND) :: phase_shift
 
-    g_loc = g; mu_loc = mu
+    mu_loc = mu
     
     do i_ = 1,this%nfld
+       g_loc = g_self(i_)
        phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
        phase_shift = (g_loc*phase_shift - mu)*dt
 
@@ -273,7 +275,9 @@ contains
     else
        st = this%nfld; en = 1; step = -1
     endif
-    
+
+    ! The accumulation order needs to be checked here for performance.
+    ! To reduce memory footprint, try storing only x-axis, and adding an inner loop over y-indices here
     do m = st,en,step
        nu_cur = nu(:,m)
        dpsi = 0._dl

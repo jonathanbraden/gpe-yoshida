@@ -34,7 +34,7 @@ else ifeq ($(FC),gfortran)
 ifeq ($(OMP),T)
 	FFLAGS += -fopenmp
 endif
-	FOPT=-funroll-loops -O3 #-fblas  (check this blas one to replace matmul calls)
+	FOPT= #-funroll-loops -O3 #-fblas  (check this blas one to replace matmul calls)
 ifeq ($(WARN),T)
 	FFLAGS+= -Wall -fbounds-check -pedantic
 endif
@@ -74,7 +74,7 @@ ifeq ($(BENCH_FINE),T)
 	MACROS+= -DBENCHMARK_FINE_GRAIN=1
 endif
 
-OBJS = constants.o fftw_mod_wtype.o fast_cheby_2d.o lattice.o model_params.o random_field.o equations.o yoshida.o
+OBJS = constants.o fftw_mod_wtype.o fast_cheby_2d.o model_params.o lattice.o random_field.o equations.o equations_imaginary_time.o yoshida.o
 OBJS_INF = constants.o fast_cheby_2d.o lattice.o equations.o yoshida.o
 
 gp: %: $(OBJS) evolve.o

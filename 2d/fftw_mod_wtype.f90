@@ -531,7 +531,7 @@ contains
   
   subroutine laplacian_2d_wtype(this,dk)
     type(transformPair2D), intent(inout) :: this
-    real(dl), intent(in) :: dk
+    real(dl), dimension(1:2), intent(in) :: dk
 
     integer :: i,j,jj; real(dl) :: rad2
 #ifdef VECTORIZE
@@ -543,11 +543,11 @@ contains
 !$OMP PARALLEL DO FIRSTPRIVATE(dk) PRIVATE(i,j,jj,rad2)
     do j=1,this%ny; if (j>this%nny) then; jj = this%ny+1-j; else; jj=j-1; endif 
 #ifdef VECTORIZE
-       this%specSpace(:,j) = -(i_x**2+jj**2)*dk**2*this%specSpace(:,j)
+       this%specSpace(:,j) = -(i_x**2*dk(1)**2+jj**2*dk(2)**2)*this%specSpace(:,j)
 #else
        do i=1,this%nnx
-          rad2 = dble((i-1)**2 + jj**2)
-          this%specSpace(i,j) = -rad2*dk**2*this%specSpace(i,j)
+          rad2 = dble((i-1)**2*dk(1)**2 + jj**2*dk(2)**2)
+          this%specSpace(i,j) = -rad2*this%specSpace(i,j)
        enddo
 #endif
     enddo

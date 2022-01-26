@@ -7,6 +7,7 @@ module Simulation
 #elif defined(INFINITE)
   use Fast_Cheby_2D
 #endif
+  use Model_Params
   implicit none
   
   type Lattice
@@ -149,6 +150,48 @@ contains
     
   end subroutine write_lattice_data
 
+  ! TO DO: Reduce memory footprint here and benchmark vector vs parallel
+  real(dl) function chemical_potential(this) result(mu)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nx,1:this%ny) :: rho2, mu_loc
+    real(dl) :: g_loc
+    integer :: i,j, l
+    
+    mu = 0._dl
+    mu_loc = 0._dl
+
+    do l=1,this%nfld
+       g_loc = g_self(l)
+       rho2 = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
+
+       this%tPair%realSpace = this%psi(XIND,1,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,l)
+
+       this%tPair%realSpace = this%psi(XIND,2,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,l)
+
+       mu_loc = mu_loc + this%v_trap*rho2 + g_loc*rho2**2
+    enddo
+#if defined(PERIODIC)
+    mu = this%dx(1)*this%dx(2)*sum(mu_loc)
+#elif defined(INFINITE)
+    this%tPair%realSpace = mu_loc
+    mu = quadrature_cheby_2d(this%tPair)
+#endif
+  end function chemical_potential
+  
+#ifdef CHEM_POT
   !TO DO : Rewrite this so it's not so horribly inefficient
   real(dl) function chemical_potential(this) result(mu)
     tyep(Lattice), intent(inout) :: this
@@ -157,5 +200,37 @@ contains
     integer :: l
     
   end function chemical_potential
+
+  real(dl) function energy(this) result(en)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nlat) :: rho2, en_loc
+    integer :: i, l
+    real(dl) :: g_loc
+
+    en = 0._dl; en_loc = 0._dl
+
+    do i=1,this%nfld
+       g_loc = g_self(i)
+       rho2 = this%psi(XIND,1,1)**2 + this%psi(XIND,2,i)**2
+
+       do l=1,2
+          this%tPair%realSpace = this%psi(XIND,l,i)
+#if defined(PERIODIC)
+          call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+          call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+          en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,l,i)
+       enddo
+       en_loc = en_loc + v_trap*rho2 + 0.5_dl*g_loc*rho2**2
+    enddo
+#if defined(PERIODIC)
+    en = this%dx*sum(en_loc)
+#elif defined(INFINITE)
+    en = sum(en_loc*this%tPair%quad_weights)
+#endif
+  end function energy
+#endif
   
 end module Simulation

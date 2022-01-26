@@ -15,12 +15,13 @@ module Fast_Cheby_2D
   include 'fftw3.f03'
 
   type chebyshevPair2D
-     integer :: nx, ny, nx_logical, ny_logical, order
+     integer :: nx, ny, nx_logical, ny_logical
      integer :: nvol
      integer, dimension(1:2) :: type
      real(C_DOUBLE), dimension(:), allocatable :: xGrid, dTheta_dx, d2Theta_dx2
      real(C_DOUBLE), dimension(:), allocatable :: yGrid, dTheta_dy, d2Theta_dy2
      real(C_DOUBLE), dimension(:), allocatable :: Theta_x, Theta_y
+     real(C_DOUBLE), dimension(:), allocatable :: quad_weights_x, quad_weights_y
      real(C_DOUBLE), pointer :: realSpace(:,:), specSpace(:,:)
      type(C_PTR) :: plan_cos_f, plan_cos_b, plan_sin_b_x1, plan_sin_b_x2
      type(C_PTR), private :: rPtr, sPtr
@@ -28,6 +29,8 @@ module Fast_Cheby_2D
   
 contains
 
+  ! Add threading support setup here
+  
   subroutine initialize_transform_cheby_2d(this,n,type)
     type(chebyshevPair2D), intent(out) :: this
     integer, dimension(1:2), intent(in) :: n
@@ -44,11 +47,14 @@ contains
     if (allocated(this%yGrid)) deallocate(this%yGrid)
     if (allocated(this%dTheta_dy)) deallocate(this%dTheta_dy)
     if (allocated(this%d2Theta_dy2)) deallocate(this%d2Theta_dy2)
-
+    if (allocated(this%quad_weights_x)) deallocate(this%quad_weights_x)
+    if (allocated(this%quad_weights_y)) deallocate(this%quad_weights_y)
+    
     allocate(this%xGrid(1:this%nx), this%yGrid(1:this%ny))
     allocate(this%dTheta_dx(1:this%nx), this%dTheta_dy(1:this%ny))
     allocate(this%d2Theta_dx2(1:this%nx), this%d2Theta_dy2(1:this%ny))
-
+    allocate(this%quad_weights_x(1:this%nx), this%quad_weights_y(1:this%ny))
+    
     select case (type)
     case (1)  ! Gauss abscissa
        this%nx_logical = 2*this%nx; this%ny_logical = 2*this%ny
@@ -69,11 +75,13 @@ contains
        this%xGrid = cos(this%Theta_x)
        this%dTheta_dx = -1._dl/sqrt(1._dl-this%xGrid**2) 
        this%d2Theta_dx2 = this%xGrid*this%dTheta_dx**3
-
+       this%quad_weights_x = sqrt(1._dl-this%xGrid**2) * 0.5_dl*twopi / dble(this%nx)
+       
        this%Theta_y = (/ (0.5_dl*twopi*(i-0.5_dl)/dble(this%ny), i=1,this%ny) /)
        this%yGrid = cos(this%Theta_y)
        this%dTheta_dy = -1._dl/sqrt(1._dl-this%yGrid**2)
        this%d2Theta_dy2 = this%yGrid*this%dTheta_dy**3
+       this%quad_weights_y = sqrt(1._dl-this%yGrid**2) * 0.5_dl*twopi / dble(this%ny)
        
     case(2)   ! Gauss-Lobatto abscissa
        print*,"Need to implement Lobatto grid"
@@ -89,7 +97,7 @@ contains
     this%plan_sin_b_x1 = fftw_plan_r2r_2d( n(2), n(1), this%specSpace, this%realSpace, FFTW_REDFT01, FFTW_RODFT01, FFTW_MEASURE)
     this%plan_sin_b_x2 = fftw_plan_r2r_2d( n(2), n(1), this%specSpace, this%realSpace, FFTW_RODFT01, FFTW_REDFT01, FFTW_MEASURE)
   end subroutine initialize_transform_cheby_2d
-
+  
   subroutine allocate_2d_array_cheby(n1, n2, arr, ck, fptr, sptr)
     integer, intent(in) :: n1, n2
     real(C_DOUBLE), pointer :: arr(:,:)
@@ -112,9 +120,11 @@ contains
     if (allocated(this%xGrid)) deallocate(this%xGrid)
     if (allocated(this%dTheta_dx)) deallocate(this%dTheta_dx)
     if (allocated(this%d2Theta_dx2)) deallocate(this%d2Theta_dx2)
+    if (allocated(this%quad_weights_x)) deallocate(this%quad_weights_x)
     if (allocated(this%yGrid)) deallocate(this%yGrid)
     if (allocated(this%dTheta_dy)) deallocate(this%dTheta_dy)
     if (allocated(this%d2Theta_dy2)) deallocate(this%d2Theta_dy2)
+    if (allocated(this%quad_weights_y)) deallocate(this%quad_weights_y)
   end subroutine destroy_transform_cheby_2d
 
   ! TO DO : Fix this for the Lobatto endpoints
@@ -126,12 +136,29 @@ contains
     this%dTheta_dx = (this%xGrid**2-1._dl) / lPar(1)
     this%d2Theta_dx2 = 2._dl*this%xGrid*(1._dl-this%xGrid**2)**1.5 / lPar(1)**2
     this%xGrid = lPar(1)*this%xGrid / sqrt(1._dl-this%xGrid**2)
-
+    this%quad_weights_x = this%quad_weights_x * (lPar(1)**2 + this%xGrid**2)**1.5 / lPar(1)**2
+    
     this%dTheta_dy = -(1._dl-this%yGrid**2) / lPar(2)
     this%d2Theta_dy2 = 2._dl*this%yGrid*(1._dl-this%yGrid**2)**1.5 / lPar(2)**2
     this%yGrid = lPar(2)*this%yGrid / sqrt(1._dl-this%yGrid**2)
+    this%quad_weights_y = this%quad_weights_y * (lPar(2)**2 + this%yGrid**2)**1.5 / lPar(2)**2
   end subroutine transform_rational_cheby
-  
+
+  real(dl) function quadrature_cheby_2d(this) result(quad)
+    type(chebyshevPair2D), intent(in) :: this
+
+    real(dl) :: w_loc
+    integer :: i,j
+
+    quad = 0._dl
+    do j=1,this%ny
+       w_loc = this%quad_weights_y(j)
+       do i=1,this%nx
+          quad = quad + w_loc*this%quad_weights_x(i)*this%realSpace(i,j)
+       enddo
+    enddo
+  end function quadrature_cheby_2d
+
   subroutine forward_transform_cheby_2d(this)
     type(chebyshevPair2D), intent(inout) :: this
     call fftw_execute_r2r(this%plan_cos_f, this%realSpace, this%specSpace)

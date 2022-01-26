@@ -5,6 +5,7 @@ program Evolve_GPE
 !  use gaussianRandomField
   use Yoshida
   use Equations ! remove this for yoshida
+  use Equations_Imag
   implicit none
 
   type(Lattice) :: mySim
@@ -13,26 +14,44 @@ program Evolve_GPE
   integer :: nf
 
   nf = 1
-  !  call create_lattice(mySim, 256, 64._dl, 1)
-  call create_lattice(mySim,128,4._dl,nf)
-  call set_model_parameters(1.,0.,0.,1.,nf)
-
+  call create_lattice(mySim, 256, 64._dl, 1)
+!  call create_lattice(mySim,256,4._dl,nf)
+  call initialize_model_parameters(nf)
+  call set_model_parameters(10.,0.,0.,0.,nf)
+  call initialize_trap(mySim,1.,3)
+  
 !  call imprint_gray_soliton(mySim,1.,0.)
 !  call imprint_black_soliton_pair(mySim,8.)
 !  call add_white_noise(mySim,0.02)
 !  call imprint_bright_soliton(mySim,2.,3.)
-  call imprint_vortex(mySim,0._dl,0._dl)
+!  call imprint_vortex(mySim,0._dl,0._dl)
+  call imprint_gaussian_2d(mySim,1._dl)
   
   call write_lattice_data(mySim,50)
-
-  dt = mySim%dx**2/16._dl
-  do i=1,10
-     call step_lattice(mySim,dt,20)
-     call write_lattice_data(mySim,50)
-  enddo
+  call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
+  call write_lattice_data(mySim,50)
+  
+!  dt = minval(mySim%dx)**2/16._dl  
+!  do i=1,500
+!     call step_lattice(mySim,dt,20)
+!     call write_lattice_data(mySim,50)
+!  enddo
   
 contains
 
+  subroutine imprint_gaussian_2d(this,sig2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: sig2
+    integer :: i_
+
+    this%psi = 0._dl
+    do i_ = 1,this%ny
+       this%psi(:,i_,1,1) = exp(-0.5_dl*(this%xGrid**2+this%yGrid(i_)**2)/sig2)/(0.5_dl*twopi*sig2)**0.5
+    enddo
+
+    this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2
+  end subroutine imprint_gaussian_2d
+  
   subroutine imprint_sine(this, wave_num)
     type(Lattice), intent(inout) :: this
     integer, intent(in) :: wave_num
@@ -40,7 +59,7 @@ contains
     real(dl) :: dx
     integer :: i_, ny
 
-    dx = this%dx
+    dx = this%dx(1)
     this%psi = 0._dl
     ny = size(this%yGrid)
     
