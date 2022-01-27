@@ -84,7 +84,8 @@ contains
     close(99)
   end subroutine initialize_trap_potential
 
-    ! Fix this to compute integral properly for cheby calculation
+  ! Fix this to compute integral properly for cheby calculation
+  ! This is missing the contributions from mu and cross-coupling g
   real(dl) function chemical_potential(this) result(mu)
     type(Lattice), intent(inout) :: this
     
@@ -124,6 +125,69 @@ contains
 #endif
   end function chemical_potential
 
+  ! Fix this to compute integral properly for cheby calculation
+  ! Debug this to make sure it's correct
+  real(dl) function chemical_potential_full(this) result(mu)
+    type(Lattice), intent(inout) :: this
+    
+    real(dl), dimension(1:this%nlat,1:this%nfld) :: rho
+    real(dl), dimension(1:this%nlat) :: mu_loc
+    real(dl), dimension(1:this%nfld) :: g_loc, nu_loc
+    integer :: i,l
+
+    mu = 0._dl
+    mu_loc = 0._dl
+
+    rho = this%psi(XIND,1,1:this%nfld)**2 + this%psi(XIND,2,1:this%nfld)**2
+    do i=1,this%nfld
+       g_loc = g_cross(:,i); g_loc(i) = g_self(i)
+       nu_loc = nu(:,i)
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,i)
+
+       this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,i)
+
+       mu_loc = mu_loc + v_trap*rho(:,i)
+       do l=1,this%nfld
+          mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l) &
+               + nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Compare sign in here to the time-evolution
+       enddo
+    enddo
+#if defined(PERIODIC)
+    mu = this%dx*sum(mu_loc)
+#elif defined(INFINITE)
+    mu = sum(mu_loc*this%tPair%quad_weights)
+#endif
+  end function chemical_potential_full
+
+  real(dl) function field_norm(this) result(norm)
+    type(Lattice), intent(inout) :: this
+    integer :: l
+    real(dl) :: norm_loc
+
+    norm = 0._dl
+    do l=1,this%nfld
+#if defined(PERIODIC)
+       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,1:this%nfld)**2)
+#elif defined(INFINITE)
+       norm_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
+#endif
+       norm = norm + norm_loc
+    enddo
+  end function field_norm
+  
   real(dl) function energy(this) result(en)
     type(Lattice), intent(inout) :: this
 

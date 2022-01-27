@@ -5,6 +5,22 @@ module Initial_Conditions
 
 contains
 
+  subroutine imprint_inhomogeneous_relative_phase(this,phi,i1,i2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: phi
+    integer, intent(in) :: i1,i2
+
+    real(dl), dimension(1:this%nlat) :: rho
+    
+    ! Reset reference field to be purely imaginary
+    this%psi(1:this%nlat,1,i1) = sqrt(this%psi(1:this%nlat,1,i1)**2+this%psi(1:this%nlat,2,i1)**2)
+    this%psi(1:this%nlat,2,i1) = 0._dl
+
+    rho = sqrt( this%psi(1:this%nlat,1,i2)**2 + this%psi(1:this%nlat,2,i2)**2 )
+    this%psi(1:this%nlat,1,i2) = rho*cos(phi)
+    this%psi(1:this%nlat,2,i2) = rho*sin(phi)
+  end subroutine imprint_inhomogeneous_relative_phase
+  
   subroutine imprint_relative_phase(this,phi,i1,i2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: phi

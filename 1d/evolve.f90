@@ -17,21 +17,23 @@ program Evolve_GPE
 
   ord = 4
   nf = 2
-  call create_lattice(mySim,256,10._dl,nf)
-  call set_model_parameters(250.,0.,0._dl,0._dl,nf)  
+  call create_lattice(mySim,128,5._dl,nf)
+  call set_model_parameters(250.,0.,250.*0.1_dl,0._dl,nf)  
   call initialize_trap_potential(mySim, 1._dl,3)
 
   call imprint_gaussian(mySim,1._dl)
-  !call imprint_sech_eigen(mySim,1)
-!  call imprint_bright_soliton(mySim,2.,3.)
-  !call imprint_sine(mySim,2,1._dl)
-!  call imprint_mean_relative_phase(mySim,0.01_dl*twopi)
 
   call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15)
+  print*,"chemical potential is ",chemical_potential(mySim)
+  print*,"full one is ", chemical_potential_full(mySim)
+  print*,"field norm is ",field_norm(mySim)
   
-  call set_model_parameters(250.,0.,250.*0.01,0._dl,nf)
-  call set_chemical_potential(chemical_potential(mySim))
-
+  ! With the normalization I'm using, I don't get the correct
+  ! time-evolution.  But I think this is due to my field normalization
+  !  Check what happens if I divide by the field normalization
+  ! No, problem is I don't have nu in the def. of chemical potential
+  call set_chemical_potential(chemical_potential_full(mySim)/2.)
+  
   dx = mySim%dx
   alpha = 8.
   dt = dx**2/alpha
