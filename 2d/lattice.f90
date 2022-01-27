@@ -190,47 +190,36 @@ contains
     mu = quadrature_cheby_2d(this%tPair)
 #endif
   end function chemical_potential
-  
-#ifdef CHEM_POT
-  !TO DO : Rewrite this so it's not so horribly inefficient
-  real(dl) function chemical_potential(this) result(mu)
-    tyep(Lattice), intent(inout) :: this
-
-    real(dl), dimension(1:this%nx,1:this%ny) :: rho2, mu_loc
-    integer :: l
-    
-  end function chemical_potential
 
   real(dl) function energy(this) result(en)
     type(Lattice), intent(inout) :: this
 
-    real(dl), dimension(1:this%nlat) :: rho2, en_loc
+    real(dl), dimension(1:this%nx,1:this%ny) :: rho2, en_loc
     integer :: i, l
     real(dl) :: g_loc
 
     en = 0._dl; en_loc = 0._dl
 
-    do i=1,this%nfld
-       g_loc = g_self(i)
-       rho2 = this%psi(XIND,1,1)**2 + this%psi(XIND,2,i)**2
+    do l=1,this%nfld
+       g_loc = g_self(l)
+       rho2 = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
 
-       do l=1,2
-          this%tPair%realSpace = this%psi(XIND,l,i)
+       do i=1,2
+          this%tPair%realSpace = this%psi(XIND,i,l)
 #if defined(PERIODIC)
-          call laplacian_1d_wtype(this%tPair,this%dk)
+          call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-          call laplacian_cheby_1d_mapped(this%tPair)
+          call laplacian_cheby_2d_mapped(this%tPair)
 #endif
-          en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,l,i)
+          en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,i,l)
        enddo
-       en_loc = en_loc + v_trap*rho2 + 0.5_dl*g_loc*rho2**2
+       en_loc = en_loc + this%v_trap*rho2 + 0.5_dl*g_loc*rho2**2
     enddo
 #if defined(PERIODIC)
-    en = this%dx*sum(en_loc)
+    en = sum(en_loc)*this%dx(1)*this%dx(2)
 #elif defined(INFINITE)
-    en = sum(en_loc*this%tPair%quad_weights)
+    print*,"energy for chebyshev grid not implemented"
 #endif
   end function energy
-#endif
-  
+
 end module Simulation

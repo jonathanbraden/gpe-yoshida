@@ -2,6 +2,7 @@
 
 module Equations_Imag
   use constants, only : dl, twopi
+  use utils, only : newunit
 #if defined(PERIODIC)
   use fftw3
 #elif defined(INFINITE)
@@ -19,28 +20,38 @@ contains
     real(dl), intent(in) :: tol_psi, tol_grad
 
     real(dl) :: dtau, err_psi, err_grad, err
-    integer :: i
-    integer, parameter :: maxit = 200
     real(dl), parameter :: tol = 1.e-15
+    integer :: i, u
+    integer, parameter :: maxit = 200, it_size = 50
     logical, dimension(1:2) :: check_pt
-
+    
     check_pt = .false.
 
+    check_pt(1) = .true.
+    if (check_pt(1)) then
+       open(unit=newunit(u),file="gradient_descent.log")
+       write(u,*) "# Error logging for gradient descent solver"
+       write(u,*) "# Step  Max(dPsi)  Chem_Pot  Energy"
+       write(u,*) 0, -1., chemical_potential(this), energy(this)
+    endif
+    
     dtau = minval(this%dx)**2 / 8._dl   ! fix this
     do i=1,maxit
-       err = gradient_flow(this,dtau,50)
-       print*,"err is ", err,", mu is ",chemical_potential(this)
+       err = gradient_flow(this, dtau, it_size)
 
-       if (check_pt(1)) print*,"Error logging not implemented"
+       if (check_pt(1)) write(u,*) i*it_size, err, chemical_potential(this), energy(this)
        if (check_pt(2)) print*,"Field logging not implemented"
 
        if (err < tol) then
-          print*,"converged in ",i," steps of 50"
+          print*,"converged in ",i," steps of ", it_size
+          if (check_pt(1)) close(u)
           exit
        endif
     enddo
-  end subroutine solve_background_w_grad_flow
 
+    if (check_pt(1)) close(u)
+  end subroutine solve_background_w_grad_flow
+  
   real(dl) function gradient_flow(this,dtau,nsteps) result(error)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dtau

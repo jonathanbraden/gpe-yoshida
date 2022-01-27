@@ -17,15 +17,15 @@ program Evolve_GPE
   call create_lattice(mySim, 256, 64._dl, 1)
 !  call create_lattice(mySim,256,4._dl,nf)
   call initialize_model_parameters(nf)
-  call set_model_parameters(10.,0.,0.,0.,nf)
-  call initialize_trap(mySim,1.,3)
+  call set_model_parameters(250.,0.,0.,0.)
+  call initialize_trap(mySim,(/4./),3)
   
 !  call imprint_gray_soliton(mySim,1.,0.)
 !  call imprint_black_soliton_pair(mySim,8.)
 !  call add_white_noise(mySim,0.02)
 !  call imprint_bright_soliton(mySim,2.,3.)
 !  call imprint_vortex(mySim,0._dl,0._dl)
-  call imprint_gaussian_2d(mySim,1._dl)
+  call imprint_gaussian_2d(mySim,(/1._dl,0.5_dl/))
   
   call write_lattice_data(mySim,50)
   call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
@@ -41,12 +41,12 @@ contains
 
   subroutine imprint_gaussian_2d(this,sig2)
     type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: sig2
+    real(dl), dimension(1:2), intent(in) :: sig2
     integer :: i_
 
     this%psi = 0._dl
     do i_ = 1,this%ny
-       this%psi(:,i_,1,1) = exp(-0.5_dl*(this%xGrid**2+this%yGrid(i_)**2)/sig2)/(0.5_dl*twopi*sig2)**0.5
+       this%psi(:,i_,1,1) = exp( -0.5_dl*(this%xGrid**2/sig2(1)+this%yGrid(i_)**2/sig2(2)) ) / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
     enddo
 
     this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2

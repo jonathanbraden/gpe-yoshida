@@ -16,9 +16,9 @@ module Equations
  
 contains
     
-  subroutine initialize_trap(this, amp, type)
+  subroutine initialize_trap(this, params, type)
     type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: amp
+    real(dl), dimension(:), intent(in) :: params
     integer, intent(in) :: type
 
     integer :: i, j 
@@ -33,7 +33,7 @@ contains
        this%v_trap = 0._dl
     case(3)
        do j=1,this%ny
-          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(j)**2),32.)
+          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+params(1)*this%yGrid(j)**2),32.)
        enddo
     case default
        this%v_trap = 0._dl

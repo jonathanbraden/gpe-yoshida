@@ -81,9 +81,8 @@ contains
     enddo
   end subroutine set_model_parameters_full
   
-  subroutine set_model_parameters(g_,gc_,nu_,mu_,nf)
+  subroutine set_model_parameters(g_,gc_,nu_,mu_)
     real(dl), intent(in) :: g_, gc_, nu_, mu_
-    integer, intent(in) :: nf
 
     integer :: i_,j_
 
