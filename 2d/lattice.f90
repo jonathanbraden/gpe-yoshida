@@ -191,6 +191,53 @@ contains
 #endif
   end function chemical_potential
 
+  real(dl) function chemical_potential_full(this) result(mu)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nx,1:this%ny) :: rho2, mu_loc
+    real(dl), dimension(1:this%nfld) :: nu_loc
+    real(dl) :: g_loc
+    integer :: l,m
+
+    mu = 0._dl
+    mu_loc = 0._dl
+
+    do l=1,this%nfld
+       g_loc = g_self(l)
+       nu_loc = nu(:,l)
+       rho2 = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
+
+       this%tPair%realSpace = this%psi(XIND,1,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,l)
+
+       this%tPair%realSpace = this%psi(XIND,2,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_mapped(this%tPair)
+#endif
+       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,l)
+
+       mu_loc = mu_loc + this%v_trap*rho2 + g_loc*rho2**2
+       do m=1,this%nfld
+          mu_loc = mu_loc - nu_loc(m) * ( this%psi(XIND,1,l)*this%psi(XIND,1,m) + this%psi(XIND,2,l)*this%psi(XIND,2,m) )
+       enddo
+    enddo
+#if defined(PERIODIC)
+    mu = this%dx(1)*this%dx(2)*sum(mu_loc)
+#elif defined(INFINITE)
+    print*,"Chemical potential calculation not tested on Chebyshev"
+    this%tPair%realSpace = mu_loc
+    mu = quadrature_cheby_2d(this%tPair)
+#endif
+    
+  end function chemical_potential_full
+  
   real(dl) function energy(this) result(en)
     type(Lattice), intent(inout) :: this
 

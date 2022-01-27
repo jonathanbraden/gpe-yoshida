@@ -8,45 +8,64 @@ program Evolve_GPE
   use Equations_Imag
   implicit none
 
-  type(Lattice) :: mySim
-  integer :: i
   real(dl) :: dt
-  integer :: nf
-
-  nf = 1
-  call create_lattice(mySim, 256, 64._dl, 1)
-!  call create_lattice(mySim,256,4._dl,nf)
-  call initialize_model_parameters(nf)
-  call set_model_parameters(250.,0.,0.,0.)
-  call initialize_trap(mySim,(/4./),3)
+  integer :: i, nf
+  type(Lattice) :: mySim
+  real(dl) :: t2, t1
   
+  nf = 2
+!  call create_lattice(mySim,256,4._dl,nf)
+  call create_lattice_rectangle(mySim, (/256,256/), (/64._dl,64._dl/), nf)
+  call initialize_model_parameters(nf)
+  call set_model_parameters(1.,0.,0.,0.)
+  call initialize_trap(mySim,(/1./),3)
+
+!!!!
+! Set up initial conditions
+!!!!  
 !  call imprint_gray_soliton(mySim,1.,0.)
 !  call imprint_black_soliton_pair(mySim,8.)
 !  call add_white_noise(mySim,0.02)
 !  call imprint_bright_soliton(mySim,2.,3.)
 !  call imprint_vortex(mySim,0._dl,0._dl)
-  call imprint_gaussian_2d(mySim,(/1._dl,0.5_dl/))
+  call imprint_gaussian_2d(mySim,(/1._dl,1._dl/))
   
-  call write_lattice_data(mySim,50)
   call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
+
+  mySim%psi(1:mySim%nx,1:mySim%ny,1,2) = cos(0.3)*mySim%psi(1:mySim%nx,1:mySim%ny,1,1)
+  mySim%psi(1:mySim%nx,1:mySim%ny,2,2) = sin(0.3)*mySim%psi(1:mySim%nx,1:mySim%ny,1,1)
   call write_lattice_data(mySim,50)
-  
-!  dt = minval(mySim%dx)**2/16._dl  
-!  do i=1,500
-!     call step_lattice(mySim,dt,20)
-!     call write_lattice_data(mySim,50)
-!  enddo
+
+  print*,"chemical potential is ",chemical_potential_full(mySim)," ,",chemical_potential(mySim)
+  print*,"field norm is "
+
+  call set_model_parameters(1.,0.,1.*0.01,0.)
+  call set_chemical_potential(chemical_potential_full(mySim))
+
+  dt = minval(mySim%dx)**2/8._dl
+  call cpu_time(t1)
+  do i=1,500
+     !print*,"Output step ",i," of size 20"
+     call step_lattice(mySim,dt,50)
+     call write_lattice_data(mySim,50)
+  enddo
+  call cpu_time(t2)
+
+  print*,"runtime is ", (t2-t1)
+  print*,"time per step i s", (t2-t1)/500./20.
   
 contains
 
   subroutine imprint_gaussian_2d(this,sig2)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(1:2), intent(in) :: sig2
-    integer :: i_
+    integer :: j,l
 
     this%psi = 0._dl
-    do i_ = 1,this%ny
-       this%psi(:,i_,1,1) = exp( -0.5_dl*(this%xGrid**2/sig2(1)+this%yGrid(i_)**2/sig2(2)) ) / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
+    do j = 1,this%ny
+       do l=1,this%nfld
+          this%psi(1:this%nx,j,1,l) = exp( -0.5_dl*(this%xGrid**2/sig2(1)+this%yGrid(j)**2/sig2(2)) ) / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
+       enddo
     enddo
 
     this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2

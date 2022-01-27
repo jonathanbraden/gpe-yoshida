@@ -12,7 +12,7 @@ module Equations
   
   implicit none
 
-  integer, parameter :: n_terms = 3
+  integer, parameter :: n_terms = 5
  
 contains
     
@@ -53,7 +53,7 @@ contains
     enddo
     close(99)
   end subroutine initialize_trap
-  
+
   subroutine split_equations(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -61,11 +61,15 @@ contains
 
     select case (abs(term))
     case (1)
-       call evolve_gradient_real(this,dt)
+       call evolve_gradient_trap_real(this,dt)
     case (2)
        call evolve_self_scattering(this,dt)
-    case (3)
-       call evolve_gradient_imag(this,dt)
+    case(3)
+       call evolve_interspecies_conversion_single(this,dt,1)
+    case(4)
+       call evolve_interspecies_conversion_single(this,dt,2)
+    case(5)
+       call evolve_gradient_trap_imag(this,dt)
     end select
   end subroutine split_equations
 
@@ -186,17 +190,17 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
+    integer :: l
 
-    do i_=1, this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+    do l=1, this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,2,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
-       this%psi(XIND,2,i_) = this%psi(XIND,2,i_)   &
-            + ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND) )*dt
+       this%psi(XIND,1,l) = this%psi(XIND,1,l)   &
+            - ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND)*this%psi(XIND,2,l) )*dt
     enddo
   end subroutine evolve_gradient_trap_real
 
@@ -204,22 +208,22 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
+    integer :: l
 
-    do i_=1, this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+    do l=1, this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
-       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_) &
-            - ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND) )*dt
+       this%psi(XIND,2,l) = this%psi(XIND,2,l) &
+            + ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND)*this%psi(XIND,1,l) )*dt
     enddo
   end subroutine evolve_gradient_trap_imag
 
-  ! Performance testing : Try storing the sin / cos in a separate array to see if this improves vectorization
-  ! Also try using a loop with OpenMP
+  ! Performance note : Precomputing the sine and cosine seems to run about twice as fase
+#define PRECOMPUTE T
   subroutine evolve_self_scattering(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -227,7 +231,10 @@ contains
     integer :: i_
     real(dl) :: g_loc, mu_loc
     real(dl), dimension(XIND) :: phase_shift
-
+#ifdef PRECOMPUTE
+    real(dl), dimension(XIND) :: co, sn
+#endif
+    
     mu_loc = mu
     
     do i_ = 1,this%nfld
@@ -235,9 +242,18 @@ contains
        phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
        phase_shift = (g_loc*phase_shift - mu)*dt
 
+#ifdef PRECOMPUTE
+       co = cos(phase_shift); sn = sin(phase_shift)
+#endif
+       
        this%tPair%realSpace = this%psi(XIND,2,i_)
+#ifdef PRECOMPUTE
+       this%psi(XIND,2,i_) = co*this%psi(XIND,2,i_) - sn*this%psi(XIND,1,i_)
+       this%psi(XIND,1,i_) = co*this%psi(XIND,1,i_) + sn*this%tPair%realSpace(XIND)
+#else
        this%psi(XIND,2,i_) = cos(phase_shift)*this%psi(XIND,2,i_) - sin(phase_shift)*this%psi(XIND,1,i_)
        this%psi(XIND,1,i_) = cos(phase_shift)*this%psi(XIND,1,i_) + sin(phase_shift)*this%tPair%realSpace(XIND)
+#endif
     enddo
   end subroutine evolve_self_scattering
 
@@ -251,7 +267,8 @@ contains
     integer :: l
 
     nu_cur = nu(:,fld_ind)
-
+    nu_cur(fld_ind) = 0._dl
+    
     dpsi = 0._dl
     do l=1,this%nfld
        dpsi(XIND,1) = dpsi(XIND,1) - nu_cur(l) * dt * this%psi(XIND,2,l)
@@ -339,5 +356,45 @@ contains
        this%psi(XIND,2,m) = this%psi(XIND,2,m)*cos(phase_rot) - temp(XIND)*sin(phase_rot)
     enddo
   end subroutine evolve_interspecies_scattering
+
+  ! Currently doing a lot of potentially unnecessary matrix creation
+  subroutine evolve_local_evolution(this,dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+
+    integer, parameter :: nit = 8, order = 5
+!    real(dl), parameter :: a(order,order) =  ! copy this
+!    real(dl), parameter :: b(order) =        ! copy this
+    
+    real(dl), dimension(1:2*this%nfld,order) :: g
+    real(dl), dimension(1:2*this%nfld) :: y, dy
+    integer :: i,o
+    ! Write Gauss-Legendre integrator here to do local nonlinear evolution
+    ! Need to define the appropriate matrices
+
+    g = 0._dl
+    do i=1,nit
+       !g = matmul(g,a)
+       do o=1,order
+          !call derivs_local(y+g(:,o)*dt , g(:,i), this%nfld)
+       enddo
+    enddo
+    
+  end subroutine evolve_local_evolution
+
+  subroutine derivs_local(yc,yp,nf)
+    real(dl), dimension(1:2*nf), intent(in) :: yc
+    real(dl), dimension(1:2*nf), intent(out) :: yp
+    integer, intent(in) :: nf
+    
+    integer :: i
+
+    do i=1,nf
+       yp(2*i-1) = 0._dl
+       yp(2*i)   = 0._dl
+    enddo
+  end subroutine derivs_local
+  
   
 end module Equations

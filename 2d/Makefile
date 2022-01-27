@@ -2,7 +2,7 @@
 FC = gfortran
 OMP = F
 PROF = F
-WARN = T
+WARN = F
 BENCH = F
 BENCH_FINE = F
 BLAS = T
@@ -34,7 +34,7 @@ else ifeq ($(FC),gfortran)
 ifeq ($(OMP),T)
 	FFLAGS += -fopenmp
 endif
-	FOPT= #-funroll-loops -O3 #-fblas  (check this blas one to replace matmul calls)
+	FOPT= -O3 #-fblas  (check this blas one to replace matmul calls)
 ifeq ($(WARN),T)
 	FFLAGS+= -Wall -fbounds-check -pedantic
 endif

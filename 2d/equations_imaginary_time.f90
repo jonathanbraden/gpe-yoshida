@@ -42,6 +42,7 @@ contains
        if (check_pt(1)) write(u,*) i*it_size, err, chemical_potential(this), energy(this)
        if (check_pt(2)) print*,"Field logging not implemented"
 
+       !print*,"Step ",i," error is ",err
        if (err < tol) then
           print*,"converged in ",i," steps of ", it_size
           if (check_pt(1)) close(u)
