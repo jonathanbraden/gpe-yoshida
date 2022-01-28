@@ -1,3 +1,5 @@
+#include "macros.h"
+
 program Evolve_GPE
   use, intrinsic :: iso_c_binding
   use constants, only : dl, twopi
@@ -14,39 +16,37 @@ program Evolve_GPE
   real(dl) :: t2, t1
   
   nf = 2
-!  call create_lattice(mySim,256,4._dl,nf)
-  call create_lattice_rectangle(mySim, (/256,256/), (/64._dl,64._dl/), nf)
+!  call create_lattice_rectangle(mySim, (/256,256/), (/64._dl,64._dl/), nf)
+  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf)
   call initialize_model_parameters(nf)
-  call set_model_parameters(1.,0.,0.,0.)
-  call initialize_trap(mySim,(/1./),3)
+  call set_model_parameters(1.,0.,0.01,0.)
+  call initialize_trap(mySim,(/1./),1)
 
 !!!!
 ! Set up initial conditions
-!!!!  
-!  call imprint_gray_soliton(mySim,1.,0.)
-!  call imprint_black_soliton_pair(mySim,8.)
-!  call add_white_noise(mySim,0.02)
-!  call imprint_bright_soliton(mySim,2.,3.)
-!  call imprint_vortex(mySim,0._dl,0._dl)
-  call imprint_gaussian_2d(mySim,(/1._dl,1._dl/))
-  
-  call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
+!!!!
+! Solve for ICs in inhomogeneous bg
+!  call imprint_gaussian_2d(mySim,(/1._dl,1._dl/))  
+!  call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
 
-  mySim%psi(1:mySim%nx,1:mySim%ny,1,2) = cos(0.3)*mySim%psi(1:mySim%nx,1:mySim%ny,1,1)
-  mySim%psi(1:mySim%nx,1:mySim%ny,2,2) = sin(0.3)*mySim%psi(1:mySim%nx,1:mySim%ny,1,1)
+  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
+
+  call set_chemical_potential(chemical_potential_full(mySim))
+  call set_chemical_potential(0.99)
+  call rotate_condensate(mySim,0.1_dl,2)
+  call add_white_noise(mySim,0.01)
+  
   call write_lattice_data(mySim,50)
 
-  print*,"chemical potential is ",chemical_potential_full(mySim)," ,",chemical_potential(mySim)
-  print*,"field norm is "
-
-  call set_model_parameters(1.,0.,1.*0.01,0.)
-  call set_chemical_potential(chemical_potential_full(mySim))
-
-  dt = minval(mySim%dx)**2/8._dl
+  ! Add some calculation of timescales
+  ! m2eff = 2\sqrt{nu} ! Back ground oscillations
+  ! om_k ~ dx^2
+  ! Use dispersion relationship to set dt
+  
+  dt = minval(mySim%dx)**2/32._dl
   call cpu_time(t1)
-  do i=1,500
-     !print*,"Output step ",i," of size 20"
-     call step_lattice(mySim,dt,50)
+  do i=1,2000
+     call step_lattice(mySim,dt,5)
      call write_lattice_data(mySim,50)
   enddo
   call cpu_time(t2)
@@ -55,6 +55,43 @@ program Evolve_GPE
   print*,"time per step i s", (t2-t1)/500./20.
   
 contains
+
+  subroutine rotate_condensate(this,dphi,ind)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dphi
+    integer, intent(in) :: ind
+
+    real(dl) :: amp, phi
+    integer :: i,j
+
+    do j=1,this%ny
+       do i=1,this%nx
+          amp = sqrt(this%psi(i,j,1,ind)**2 + this%psi(i,j,2,ind)**2)
+          phi = atan2(this%psi(i,j,2,ind),this%psi(i,j,1,ind)) + dphi
+          this%psi(i,j,1,ind) = amp*cos(phi) 
+          this%psi(i,j,2,ind) = amp*sin(phi)
+       enddo
+    enddo
+  end subroutine rotate_condensate
+
+  subroutine global_rotation(this,dphi)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dphi
+
+    real(dl) :: amp, phi
+    integer :: i,j,l
+
+    do l=1,this%nfld
+       do j=1,this%ny
+          do i=1,this%nx
+             amp = sqrt(this%psi(i,j,1,l)**2 + this%psi(i,j,2,l)**2)
+             phi = atan2(this%psi(i,j,2,l),this%psi(i,j,1,l)) + dphi
+             this%psi(i,j,1,l) = amp*cos(phi)
+             this%psi(i,j,2,l) = amp*sin(phi)
+          enddo
+       enddo
+    enddo
+  end subroutine global_rotation
 
   subroutine imprint_gaussian_2d(this,sig2)
     type(Lattice), intent(inout) :: this
@@ -70,6 +107,20 @@ contains
 
     this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2
   end subroutine imprint_gaussian_2d
+
+  subroutine imprint_homogeneous_relative_phase(this,phi,phi_global)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: phi, phi_global
+    real(dl) :: amp
+
+    amp = 1._dl
+    
+    this%psi = 0._dl
+    this%psi(XIND,1,1) = amp*cos(phi_global)
+    this%psi(XIND,2,1) = amp*sin(phi_global)
+    this%psi(XIND,1,2) = cos(phi+phi_global)*amp
+    this%psi(XIND,2,2) = sin(phi+phi_global)*amp
+  end subroutine imprint_homogeneous_relative_phase
   
   subroutine imprint_sine(this, wave_num)
     type(Lattice), intent(inout) :: this

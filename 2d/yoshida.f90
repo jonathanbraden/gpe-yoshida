@@ -18,7 +18,7 @@ contains
     real(dl), intent(in) :: dt
     integer, intent(in) :: nstep
 
-    call symp4(this,dt,nstep)
+    call symp6(this,dt,nstep)
     this%time = this%time + dt*nstep
   end subroutine step_lattice
 

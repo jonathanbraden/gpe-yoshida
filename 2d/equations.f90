@@ -222,8 +222,7 @@ contains
     enddo
   end subroutine evolve_gradient_trap_imag
 
-  ! Performance note : Precomputing the sine and cosine seems to run about twice as fase
-#define PRECOMPUTE T
+  ! Performance note : Precomputing the sine and cosine seems to run about twice as fast
   subroutine evolve_self_scattering(this,dt)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -231,9 +230,7 @@ contains
     integer :: i_
     real(dl) :: g_loc, mu_loc
     real(dl), dimension(XIND) :: phase_shift
-#ifdef PRECOMPUTE
     real(dl), dimension(XIND) :: co, sn
-#endif
     
     mu_loc = mu
     
@@ -241,19 +238,11 @@ contains
        g_loc = g_self(i_)
        phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
        phase_shift = (g_loc*phase_shift - mu)*dt
-
-#ifdef PRECOMPUTE
        co = cos(phase_shift); sn = sin(phase_shift)
-#endif
        
        this%tPair%realSpace = this%psi(XIND,2,i_)
-#ifdef PRECOMPUTE
        this%psi(XIND,2,i_) = co*this%psi(XIND,2,i_) - sn*this%psi(XIND,1,i_)
        this%psi(XIND,1,i_) = co*this%psi(XIND,1,i_) + sn*this%tPair%realSpace(XIND)
-#else
-       this%psi(XIND,2,i_) = cos(phase_shift)*this%psi(XIND,2,i_) - sin(phase_shift)*this%psi(XIND,1,i_)
-       this%psi(XIND,1,i_) = cos(phase_shift)*this%psi(XIND,1,i_) + sin(phase_shift)*this%tPair%realSpace(XIND)
-#endif
     enddo
   end subroutine evolve_self_scattering
 

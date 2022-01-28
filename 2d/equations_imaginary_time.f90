@@ -117,6 +117,67 @@ contains
     enddo
   end subroutine gradient_step
 
+  ! In debugging phase to add nu
+  ! Figure out how to remove the psi_cur storage
+  subroutine gradient_step_w_nu(this,dtau)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dtau
+
+    real(dl), dimension(XIND,1:2,1:this%nfld) :: psi_cur
+    real(dl), dimension(1:this%nx) :: rho2
+    real(dl), dimension(1:this%nfld) :: nu_loc
+    real(dl) :: g_loc
+    integer :: j,l
+
+    psi_cur(XIND,1:2,1:this%nfld) = this%psi(XIND,1:2,1:this%nfld)
+    
+    do l=1,this%nfld
+       g_loc = g_self(l)
+       
+       this%tPair%realSpace = this%psi(XIND,1,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
+       do j=1,this%ny
+          rho2 = this%psi(1:this%nx,j,1,l)**2 + this%psi(1:this%nx,j,2,l)**2
+
+          this%psi(1:this%nx,j,1,l) = this%psi(1:this%nx,j,1,l) + &
+               ( &
+               0.5_dl*this%tPair%realSpace(1:this%nx,j) &
+               - this%v_trap(1:this%nx,j)*this%psi(1:this%nx,j,1,l) &
+               - g_loc*rho2(1:this%nx)*this%psi(1:this%nx,j,1,l) &
+               ) * dtau 
+       enddo
+       
+       this%tPair%realSpace = this%psi(XIND,2,l)
+#if defined(PERIODIC)
+       call laplacian_2d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
+       do j=1,this%ny
+          rho2 = this%psi(1:this%nx,j,1,l)**2 + this%psi(1:this%nx,j,2,l)**2
+
+          this%psi(1:this%nx,j,2,l) = this%psi(1:this%nx,j,2,l) + &
+               ( &
+               0.5_dl*this%tPair%realSpace(1:this%nx,j) &
+               - this%v_trap(1:this%nx,j)*this%psi(1:this%nx,j,2,l) &
+               - g_loc*rho2(1:this%nx)*this%psi(1:this%nx,j,2,l) &
+               ) * dtau 
+       enddo
+    enddo
+
+    do j=1,this%nfld
+       nu_loc = nu(:,j); nu_loc(j) = 0._dl
+       do l=1,this%nfld
+          this%psi(XIND,1,j) = this%psi(XIND,1,j) - nu_loc(l) * dtau * psi_cur(XIND,1,l)
+          this%psi(XIND,2,j) = this%psi(XIND,2,j) - nu_loc(l) * dtau * psi_cur(XIND,2,l)
+       enddo
+    enddo
+  end subroutine gradient_step_w_nu
+  
   subroutine renorm_field(this)
     type(Lattice), intent(inout) :: this
 
