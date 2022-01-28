@@ -11,33 +11,46 @@ program Evolve_GPE
   implicit none
 
   real(dl) :: dt
-  integer :: i, nf
+  integer :: i, nf, u
   type(Lattice) :: mySim
+  integer :: ierror
+  real(dl) :: error
   real(dl) :: t2, t1
   
-  nf = 2
-!  call create_lattice_rectangle(mySim, (/256,256/), (/64._dl,64._dl/), nf)
-  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf)
+  nf = 1
+  call create_lattice_rectangle(mySim, (/256,128/), (/64._dl,16._dl/), nf)
+!  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf) ! preheating
   call initialize_model_parameters(nf)
-  call set_model_parameters(1.,0.,0.01,0.)
-  call initialize_trap(mySim,(/1./),1)
+  call set_model_parameters(0.,0.,0.,0.)
+  call initialize_trap(mySim,(/16./),3)
 
 !!!!
 ! Set up initial conditions
 !!!!
 ! Solve for ICs in inhomogeneous bg
-!  call imprint_gaussian_2d(mySim,(/1._dl,1._dl/))  
-!  call solve_background_w_grad_flow(mySim,1.e-15,1.e-15)
-
-  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
-
-  call set_chemical_potential(chemical_potential_full(mySim))
-  call set_chemical_potential(0.99)
-  call rotate_condensate(mySim,0.1_dl,2)
-  call add_white_noise(mySim,0.01)
-  
+  call imprint_gaussian_2d(mySim,(/1._dl,0.25_dl/))
   call write_lattice_data(mySim,50)
+  
+!  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
 
+!  call set_chemical_potential(chemical_potential_full(mySim))
+!  call set_chemical_potential(0.99)
+!  call rotate_condensate(mySim,0.1_dl,2)
+!  call add_white_noise(mySim,0.01)
+  
+  open(unit=newunit(u),file='chem_pot.dat')
+  write(u,*) "# Chemical Potential for NLSE in asymmetric harmonic trap"
+  write(u,*) "# V = 1/2*(x^2+16*y^2)"
+  write(u,*) "# g/(hbar*omega)  mu   energy"
+  write(u,*) "# Reference:  Gaussian initial state"
+  write(u,*) "# mu = ", chemical_potential_full(mySim)," E = ", energy(mySim)
+  do i=0,50
+     call set_model_parameters(5.*i,0.,0.,0.)
+     call solve_background_w_grad_flow(mySim,1.e-15,1.e-15,error,ierror)
+     call write_lattice_data(mySim,50)
+     write(u,*) 5.*i, chemical_potential_full(mySim), energy(mySim)
+  enddo
+  
   ! Add some calculation of timescales
   ! m2eff = 2\sqrt{nu} ! Back ground oscillations
   ! om_k ~ dx^2
@@ -45,9 +58,9 @@ program Evolve_GPE
   
   dt = minval(mySim%dx)**2/32._dl
   call cpu_time(t1)
-  do i=1,2000
-     call step_lattice(mySim,dt,5)
-     call write_lattice_data(mySim,50)
+  do i=1,100
+!     call step_lattice(mySim,dt,10)
+!     call write_lattice_data(mySim,50)
   enddo
   call cpu_time(t2)
 
