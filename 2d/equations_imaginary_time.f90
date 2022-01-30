@@ -28,7 +28,7 @@ contains
     logical, dimension(1:2) :: check_pt
     logical :: o
 
-    ierror = -1
+    ierror = -1; error = -1.
     check_pt = .false.
     
     check_pt(1) = .true.

@@ -297,7 +297,8 @@ contains
 #if defined(PERIODIC)
     en = sum(en_loc)*this%dx(1)*this%dx(2)
 #elif defined(INFINITE)
-    print*,"energy for chebyshev grid not implemented"
+    this%tPair%realSpace = en_loc
+    en = quadrature_cheby_2d(this%tPair)
 #endif
   end function energy
 
