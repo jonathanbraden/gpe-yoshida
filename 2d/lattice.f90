@@ -190,7 +190,7 @@ contains
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-       call laplacian_cheby_2d_mapped(this%tPair)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,l)
 
@@ -198,7 +198,7 @@ contains
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-       call laplacian_cheby_2d_mapped(this%tPair)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,l)
 
@@ -239,7 +239,7 @@ contains
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-       call laplacian_cheby_2d_mapped(this%tPair)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,l)
 
@@ -247,7 +247,7 @@ contains
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-       call laplacian_cheby_2d_mapped(this%tPair)
+       call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
        mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,l)
        
@@ -288,7 +288,7 @@ contains
 #if defined(PERIODIC)
           call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-          call laplacian_cheby_2d_mapped(this%tPair)
+          call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
           en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,i,l)
        enddo
