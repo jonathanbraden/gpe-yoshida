@@ -162,7 +162,7 @@ contains
        mu_loc = mu_loc + v_trap*rho(:,i)
        do l=1,this%nfld
           mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l) &
-               + nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Compare sign in here to the time-evolution
+               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) )
        enddo
     enddo
 #if defined(PERIODIC)
