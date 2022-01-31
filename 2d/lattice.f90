@@ -225,7 +225,7 @@ contains
     real(dl), dimension(1:this%nfld) :: nu_loc
     real(dl) :: g_loc
     real(dl) :: psi_norm
-    integer :: l,m
+    integer :: l,m,i
 
     chemP = 0._dl
     mu_loc = 0._dl
@@ -235,24 +235,17 @@ contains
        nu_loc = nu(:,l); nu_loc(l) = 0._dl
        rho2 = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
 
-       this%tPair%realSpace = this%psi(XIND,1,l)
+       do i=1,2
+          this%tPair%realSpace = this%psi(XIND,i,l)
 #if defined(PERIODIC)
-       call laplacian_2d_wtype(this%tPair,this%dk)
+          call laplacian_2d_wtype(this%tPair,this%dk)
 #elif defined(INFINITE)
-       call laplacian_cheby_2d_chain_mapped(this%tPair)
+          call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
-       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,1,l)
+          mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,i,l)
+       enddo
 
-       this%tPair%realSpace = this%psi(XIND,2,l)
-#if defined(PERIODIC)
-       call laplacian_2d_wtype(this%tPair,this%dk)
-#elif defined(INFINITE)
-       call laplacian_cheby_2d_chain_mapped(this%tPair)
-#endif
-       mu_loc = mu_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,2,l)
-       
        mu_loc = mu_loc + this%v_trap*rho2 + g_loc*rho2**2
-
        do m=1,this%nfld
           mu_loc = mu_loc - nu_loc(m) * ( this%psi(XIND,1,l)*this%psi(XIND,1,m) + this%psi(XIND,2,l)*this%psi(XIND,2,m) )
        enddo
@@ -302,4 +295,44 @@ contains
 #endif
   end function energy
 
+  real(dl) function energy_full(this) result(en)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nx,1:this%ny) :: rho2, en_loc
+    integer :: i,l,m
+    real(dl) :: g_loc
+    real(dl), dimension(1:this%nfld) :: nu_loc
+    
+    en = 0._dl; en_loc = 0._dl
+
+    do l=1,this%nfld
+       g_loc = g_self(l)
+       nu_loc = nu(:,l); nu_loc(l) = 0._dl
+       rho2 = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
+
+       do i=1,2
+          this%tPair%realSpace = this%psi(XIND,i,l)
+#if defined(PERIODIC)
+          call laplacian_2d_wtype(this%tPair,this%dk)
+#elif defined(INFINITE)
+          call laplacian_cheby_2d_chain_mapped(this%tPair)
+#endif
+          en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,i,l)
+       enddo
+       
+       en_loc = en_loc + this%v_trap*rho2 + g_loc*rho2**2
+       ! Check this, and add g cross couplings
+       do m=1,this%nfld
+          en_loc = en_loc - nu_loc(m) * ( this%psi(XIND,1,l)*this%psi(XIND,1,m) + this%psi(XIND,2,l)*this%psi(XIND,2,m) )
+       enddo
+    enddo
+    
+#if defined(PERIODIC)
+    en = sum(en_loc)*this%dx(1)*this%dx(2)
+#elif defined(INFINITE)
+    this%tPair%realSpace = en_loc
+    en = quadrature_cheby_2d(this%tPair)
+#endif
+  end function energy_full
+  
 end module Simulation

@@ -227,25 +227,51 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
+    integer :: l
     real(dl) :: g_loc, mu_loc
     real(dl), dimension(XIND) :: phase_shift
     real(dl), dimension(XIND) :: co, sn
     
     mu_loc = mu
     
-    do i_ = 1,this%nfld
-       g_loc = g_self(i_)
-       phase_shift = this%psi(XIND,1,i_)**2 + this%psi(XIND,2,i_)**2
+    do l = 1,this%nfld
+       g_loc = g_self(l)
+       phase_shift = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
        phase_shift = (g_loc*phase_shift - mu)*dt
        co = cos(phase_shift); sn = sin(phase_shift)
        
-       this%tPair%realSpace = this%psi(XIND,2,i_)
-       this%psi(XIND,2,i_) = co*this%psi(XIND,2,i_) - sn*this%psi(XIND,1,i_)
-       this%psi(XIND,1,i_) = co*this%psi(XIND,1,i_) + sn*this%tPair%realSpace(XIND)
+       this%tPair%realSpace = this%psi(XIND,2,l)
+       this%psi(XIND,2,l) = co*this%psi(XIND,2,l) - sn*this%psi(XIND,1,l)
+       this%psi(XIND,1,l) = co*this%psi(XIND,1,l) + sn*this%tPair%realSpace(XIND)
     enddo
   end subroutine evolve_self_scattering
 
+  !>@brief
+  !> Evolves the self-scattering coupling of the GPE, but first splits into
+  !> amplitude and phase, then rotates phase, then projects back rather
+  !> than directly applying a rotation matrix
+  subroutine evolve_self_scattering_amp_phase(this,dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    real(dl), dimension(XIND) :: amp, phase
+    real(dl) :: g_loc, mu_loc
+    integer :: l
+
+    mu_loc = mu
+
+    do l = 1,this%nfld
+       g_loc = g_self(l)
+       amp = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
+       phase = arctan2(this%psi(XIND,2,l),this%psi(XIND,1,l)
+
+       phase = phase + (g_loc*amp-mu)*dt
+       amp = sqrt(amp)
+       this%psi(XIND,1,l) = amp*cos(phase)
+       this%psi(XIND,2,l) = amp*sin(phase)
+    enddo
+  end subroutine evolve_self_scattering_amp_phase
+    
   subroutine evolve_interspecies_conversion_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -295,6 +321,19 @@ contains
     enddo
   end subroutine evolve_interspecies_conversion
 
+  subroutine evolve_interspecies_conversion_oscillating_single(this,dt,fld_ind)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: fld_ind
+
+    real(dl), dimension(1:this%nx,1:this%ny,1:2) :: dpsi
+    integer :: l
+
+    do l=1,this%nfld
+
+    enddo
+  end subroutine evolve_interspecies_conversion_oscillating_single
+  
   subroutine evolve_interspecies_scattering_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt

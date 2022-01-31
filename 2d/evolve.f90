@@ -18,19 +18,21 @@ program Evolve_GPE
   real(dl) :: t2, t1
   
   nf = 1
-!  call create_lattice_rectangle(mySim, (/256,128/), (/64._dl,16._dl/), nf)
+!  call create_lattice_rectangle(mySim, (/128,128/), (/64._dl,16._dl/), nf)
+  call create_lattice_rectangle(mySim, (/128,128/), (/ 8._dl, 2._dl /), nf)
   !  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf) ! preheating
-  call create_lattice(mySim, 128, 10.,nf)
+!  call create_lattice(mySim, 128, 10.,nf)
   call initialize_model_parameters(nf)
-  call set_model_parameters(1.,0.,0.,0.)
-  call initialize_trap(mySim,(/1./),1)
+  call set_model_parameters(100.,0.,0.,0.)
+  call initialize_trap(mySim,(/16./),3)
 
 !!!!
 ! Set up initial conditions
 !!!!
 ! Solve for ICs in inhomogeneous bg
-!  call imprint_gaussian_2d(mySim,(/1._dl,0.25_dl/))
-!  call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15, error, ierror)
+  call imprint_gaussian_2d(mySim,(/1._dl,0.25_dl/))
+  call write_lattice_data(mySim,50)
+  call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15, error, ierror)
 !  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
 
   ! Stuff for the preheating calc
@@ -39,7 +41,7 @@ program Evolve_GPE
 !  call rotate_condensate(mySim,0.1_dl,2)
 !  call add_white_noise(mySim,0.01)
 
-  call imprint_vortex(mySim,0.,0.)
+!  call imprint_vortex(mySim,0.,0.)
   call write_lattice_data(mySim,50)
   print*,"basic mu is ", chemical_potential(mySim)
   call set_chemical_potential(chemical_potential(mySim))
@@ -53,8 +55,8 @@ program Evolve_GPE
   print*,"dt = ",dt*20
   call cpu_time(t1)
   do i=1,500
-     call step_lattice(mySim,dt,20)
-     call write_lattice_data(mySim,50)
+!     call step_lattice(mySim,dt,20)
+!     call write_lattice_data(mySim,50)
   enddo
   call cpu_time(t2)
 
