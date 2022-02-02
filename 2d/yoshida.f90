@@ -18,8 +18,7 @@ contains
     real(dl), intent(in) :: dt
     integer, intent(in) :: nstep
 
-    call symp6(this,dt,nstep)
-    this%time = this%time + dt*nstep
+    call symp4(this,dt,nstep)
   end subroutine step_lattice
 
   subroutine symp_o2_step(this,dt,w1,w2)
@@ -31,10 +30,12 @@ contains
     do i=2,n_terms-1
        call split_equations(this, 0.5_dl*w1*dt, i)
     enddo
+    this%time = this%time + 0.5_dl*w1*dt
     call split_equations(this, w1*dt, n_terms)
     do i=n_terms-1,2,-1
        call split_equations(this, 0.5_dl*w1*dt,i)
     enddo
+    this%time = this%time + 0.5_dl*w1*dt
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
   end subroutine symp_o2_step
   

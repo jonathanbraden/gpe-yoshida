@@ -17,7 +17,7 @@ program Evolve_GPE
   real(dl) :: error
   real(dl) :: t2, t1
   
-  nf = 1
+  nf = 2
 !  call create_lattice_rectangle(mySim, (/128,128/), (/64._dl,16._dl/), nf)
   call create_lattice_rectangle(mySim, (/128,128/), (/ 8._dl, 2._dl /), nf)
   !  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf) ! preheating
@@ -55,8 +55,9 @@ program Evolve_GPE
   print*,"dt = ",dt*20
   call cpu_time(t1)
   do i=1,500
-!     call step_lattice(mySim,dt,20)
-!     call write_lattice_data(mySim,50)
+     call step_lattice(mySim,dt,20)
+     !     call write_lattice_data(mySim,50)
+     print*,"step ",i," time = ",mySim%time
   enddo
   call cpu_time(t2)
 

@@ -13,8 +13,8 @@ module Model_Params
   real(dl), dimension(:,:), allocatable :: v_trap 
   real(dl), dimension(:,:), allocatable :: g_vals, g_cross, nu
   real(dl), dimension(:), allocatable :: g_self
-  real(dl) :: mu
   real(dl) :: delta, omega
+  real(dl) :: mu
   integer :: nfld
   integer :: type
 

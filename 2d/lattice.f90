@@ -15,7 +15,7 @@ module Simulation
      real(dl), dimension(:,:), allocatable :: v_trap
      real(dl), dimension(:), allocatable :: xGrid, yGrid
      real(dl), dimension(1:2) :: dx, lSize, dk
-     real(dl) :: time
+     real(dl) :: time, time_half
      integer :: nx, ny
      integer :: nFld
 #if defined(PERIODIC)
