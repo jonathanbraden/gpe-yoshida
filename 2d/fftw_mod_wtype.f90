@@ -102,19 +102,6 @@ module fftw3
      type(C_PTR), private :: rPtr, sPtr
   end type transformPair2D
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! DESCRIPTION
-  !> @brief
-  !> Store information to perform 3D FFT pseudospec based derivatives
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  type transformPair3D
-     integer :: nx, ny, nz, nnx, nny, nnz
-     real(C_DOUBLE), pointer :: realSpace(:,:,:)
-     complex(C_DOUBLE_COMPLEX), pointer :: specSpace(:,:,:)
-     type(C_PTR) :: planf, planb
-     type(C_PTR), private :: rPtr, sPtr
-  end type transformPair3D
-
 contains
    
 !****************************!
@@ -134,8 +121,9 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine boot_openmp(nThread)
     integer, optional, intent(in) :: nThread
-    integer :: errorOMP
 #ifdef USEOMP
+    integer :: errorOMP
+    
     errorOMP = fftw_init_threads()
     if (errorOMP == 0) then
        print*,"Error initializing OpenMP threading for FFTW"
@@ -151,20 +139,6 @@ contains
     print*,"FFTW booted using ",errorOMP," threads"
 #endif
   end subroutine boot_openmp
-
-#define RSPACE1D create_transform_1d%realSpace
-#define SSPACE1D create_transform_1d%specSPACE
-
-  function create_transform_1d(n)
-    type(transformPair1D) :: create_transform_1d
-    integer, intent(in) :: n
-
-    call allocate_1d_array(n, RSPACE1D, SSPACE1D, create_transform_1d%rPtr, create_transform_1d%sPtr)
-    create_transform_1d%nx = n
-
-    create_transform_1d%planf = fftw_plan_dft_r2c_1d(n, RSPACE1D, SSPACE1D, FFTW_MEASURE)
-    create_transform_1d%planb = fftw_plan_dft_c2r_1d(n, SSPACE1D, RSPACE1D, FFTW_MEASURE)
-  end function create_transform_1d
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! DESCRIPTION
@@ -236,38 +210,6 @@ contains
     call fftw_free(this%rPtr); call fftw_free(this%sPtr)
   end subroutine destroy_transform_2d
 
-  !> @brief
-  !> Create a 3D transform pair
-  !>
-  !> @param[out] this (transformPair3D)  The transform to create
-  !> @param[in]  n    (integer, dim(1:3) The number of grid points in each dimension
-  !>
-  !> @todo
-  !> @arg finish the creation of the plans
-  subroutine initialize_transform_3d(this, n)
-    type(transformPair3D), intent(out) :: this
-    integer, intent(in), dimension(1:3) :: n
-
-    this%nx = n(1); this%ny = n(2); this%nz = n(3)
-    this%nnx = n(1)/2+1; this%nny = n(2)/2+1; this%nnz = n(3)/2+1
-    call allocate_3d_array(n(1),n(2),n(3),this%realSpace,this%specSpace)
-
-!      this%planf = fftw_plan_dft_r2c_3d( this%realSpace, this%specSpace, FFTW_MEASURE)
-!      this%planb = fftw_plan_dft_c2r_3d( this%specSpace, this%realSpace, FFTW_MEASURE)
-  end subroutine initialize_transform_3d
-
-  !> @brief
-  !> Destroy a 3D transform and free allocated memory.
-  !> The transform is no longer usable after calling this subroutine.
-  !>
-  !> @param[in,out] this (transformPair3D) The transform to destroy
-  subroutine destroy_transform_3d(this)
-    type(transformPair3D), intent(inout) :: this
-
-    call fftw_destroy_plan(this%planf); call fftw_destroy_plan(this%planb)
-    call fftw_free(this%rPtr); call fftw_free(this%sPtr)
-  end subroutine destroy_transform_3d
-
   !********************!
   ! Helper Subroutines !
   !********************!
@@ -337,7 +279,7 @@ contains
   end subroutine destroy_arrays_1d
 
   subroutine allocate_2d_array(L,M, arr, Fk, fptr, fkptr)
-    integer :: L,M
+    integer, intent(in) :: L,M
     real(C_DOUBLE), pointer :: arr(:,:)
     complex(C_DOUBLE_COMPLEX), pointer :: Fk(:,:)
     type(C_PTR) :: fptr, fkptr
@@ -352,20 +294,20 @@ contains
     call c_f_pointer(fkptr, Fk, [LL,M])
   end subroutine allocate_2d_array
 
-  subroutine allocate_3d_array(L,M,N, arr, Fk)
-    integer :: L,M,N
-    real(C_DOUBLE), pointer :: arr(:,:,:)
-    complex(C_DOUBLE_COMPLEX), pointer :: Fk(:,:,:)
-    
-    type(C_PTR) :: fptr, fkptr
+  !>@brief
+  !> allocated a 2D SIMD aligned real array
+  subroutine allocate_2d_real_arrray(L,M, arr, fptr)
+    integer, intent(in) :: L,M
+    real(C_DOUBLE), pointer :: arr(:,:)
+    type(C_PTR) :: fptr
+
     integer :: LL
 
     LL = L/2+1
-
-    fptr = fftw_alloc_real(int(L*M*N, C_SIZE_T)); call c_f_pointer(fptr, arr, [L,M,N])
-    fkptr = fftw_alloc_complex(int(LL*M*N, C_SIZE_T)); call c_f_pointer(fkptr, Fk, [LL,M,N])
-  end subroutine allocate_3d_array
-
+    fptr = fftw_alloc_real(int(L*M, C_SIZE_T))
+    call c_f_pointer(fptr,arr,[L,M])
+  end subroutine allocate_2d_real_arrray
+  
 !********************************************************!
 ! Mathematical subroutines using the transform pair type !
 !********************************************************!
@@ -556,218 +498,4 @@ contains
     this%realSpace = this%realSpace / dble(this%nx) / dble(this%ny)
   end subroutine laplacian_2d_wtype
   
-! To add : allocate and initialize inplace/outofplace FFTW plans
-! To add : extend this to work with MPI
-
-!!!!!!!!!!!!!!
-! Mathematical Subroutines, compute various derivatives
-!!!!!!!!!!!!!!
-    subroutine inverse_derivative_1d(n,f,Fk,planf,planb, dk)
-      integer, intent(in) :: n
-      real(dl), intent(in) :: dk
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      type(C_PTR) :: planf, planb
-
-      integer :: i, nn
-      complex(C_DOUBLE_COMPLEX) :: norm
-
-      nn = n/2+1
-      norm = -iImag / dk / dble(n)
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do i=2,nn
-         Fk(i) = norm*Fk(i) / dble(i-1)
-      enddo
-      Fk(1) = 0._dl
-      call fftw_execute_dft_c2r(planb, Fk, f)
-    end subroutine inverse_derivative_1d
-
-    subroutine derivative_1d(n,f,Fk,planf,planb,dk)
-      integer, intent(in) :: n
-      real(dl), intent(in) :: dk
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      type(C_PTR), intent(in) :: planf, planb
-
-      integer :: i,nn
-
-      nn = n/2+1
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do i=1,nn
-         Fk(i) = (i-1)*dk*iImag*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb, Fk, f)
-      f = f / dble(n)
-    end subroutine derivative_1d
-
-    subroutine laplacian_1d(n, f, Fk, planf, planb, dk)
-      integer, intent(in) :: n
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      real(dl), intent(in) :: dk
-      type(C_PTR), intent(in) :: planf, planb
-
-      integer :: i,nn
-
-      nn = n/2+1
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do i=1,nn
-         Fk(i) = -((i-1)*dk)**2*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb, Fk, f)
-      f = f / dble(n)
-    end subroutine laplacian_1d
-
-    subroutine gradsquared_1d(n,f,Fk,planf,planb,dk)
-      integer, intent(in) :: n
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      real(dl), intent(in) :: dk
-      type(C_PTR), intent(in) :: planf, planb
-
-      integer :: i,nn
-      
-      nn = n/2+1
-      call fftw_execute_dft_r2c(planf,f,Fk)
-      do i=1,nn
-         Fk(i) = (i-1)*dk*iImag*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb,Fk,f)
-      f = f**2 / dble(n)**2
-    end subroutine gradsquared_1d
-
-    subroutine grad4_1d(n, f, Fk, planf, planb, dk)
-      integer, intent(in) :: n
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      real(dl), intent(in) :: dk
-      type(C_PTR), intent(in) :: planf, planb
-
-      integer :: i,nn
-
-      nn = n/2+1
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do i=1,nn
-         Fk(i) = ((i-1)*dk)**4*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb, Fk, f)
-      f = f / dble(n)
-    end subroutine grad4_1d
-
-    subroutine grad_adotb_1d(n,f1,f2,f,Fk,planf,planb,dk)
-      integer, intent(in) :: n
-      real(C_DOUBLE), intent(in) :: f1(1:n),f2(1:n)
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      real(dl), intent(in) :: dk
-      type(C_PTR), intent(in) :: planf, planb
-
-      real(C_DOUBLE) :: ftmp(1:n)
-      integer :: i,nn
-
-      nn = n/2+1
-      f = f1
-      call fftw_execute_dft_r2c(planf,f,Fk)
-      do i=1,nn
-         Fk(i) = (i-1)*dk*iImag*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb,Fk,f)
-      ftmp=f
-
-      f = f2
-      call fftw_execute_dft_r2c(planf,f,Fk)
-      do i=1,nn
-         Fk(i) = (i-1)*dk*iImag*Fk(i)
-      enddo
-      call fftw_execute_dft_c2r(planb,Fk,f)
-
-      f = ftmp*f / dble(n)**2
-    end subroutine grad_adotb_1d
-
-    subroutine laplacian_2d(n1, n2, f, Fk, dk)
-      integer :: n1, n2
-      real(C_DOUBLE), pointer :: f(:,:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:,:)
-      real(dl) :: dk
-
-      real(dl) :: rad2
-      integer :: nn1, nn2
-      integer :: i,j,jj
-
-      type(C_PTR) :: planf, planb
-
-      nn1 = n1/2+1; nn2=n2/2+1
-      planf = fftw_plan_dft_r2c_2d(n2, n1, f, Fk, FFTW_ESTIMATE)
-      planb = fftw_plan_dft_c2r_2d(n2, n1, Fk, f, FFTW_ESTIMATE)
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do j=1,n2; if (j>nn2) then; jj = n2+1-j; else; jj=j-1; endif
-         do i=1,nn1
-            rad2 = dble((i-1)**2 + jj**2)
-            Fk(i,j) = -rad2*dk**2*Fk(i,j)
-         enddo
-      enddo
-
-      call fftw_execute_dft_c2r(planb, Fk, f)
-      call fftw_destroy_plan(planf)
-      call fftw_destroy_plan(planb)
-      f = f / dble(n1) / dble(n2)
-    end subroutine laplacian_2d
-
-    subroutine laplacian_3d(n1, n2, n3, f, Fk, dk)
-      integer :: n1, n2, n3
-      real(C_DOUBLE), pointer :: f(:,:,:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:,:,:)
-      real(dl) :: dk
-
-      real(dl) :: rad2
-      integer :: nn1, nn2, nn3
-      integer :: i,j,k,ii,jj,kk
-
-      type(C_PTR) :: planf, planb
-
-      nn1 = n1/2+1; nn2=n2/2+1; nn3=n3/2+1
-      planf = fftw_plan_dft_r2c_3d(n3, n2, n1, f, Fk, FFTW_ESTIMATE)
-      planb = fftw_plan_dft_c2r_3d(n3, n2, n1, Fk, f, FFTW_ESTIMATE)
-      call fftw_execute_dft_r2c(planf, f, Fk)
-      do k=1,n3; if (k>nn3) then; kk = n3+1-k; else; kk=k-1; endif
-      do j=1,n2; if (j>nn2) then; jj = n2+1-j; else; jj=j-1; endif
-         do i=1,nn1
-            rad2 = dble((i-1)**2) + dble(jj**2) + dble(kk**2)
-            Fk(i,j,k) = -rad2*dk**2*Fk(i,j,k)
-         enddo
-      enddo
-      enddo
-
-      call fftw_execute_dft_c2r(planb, Fk, f)
-      call fftw_destroy_plan(planf)
-      call fftw_destroy_plan(planb)
-      f = f / dble(n1) / dble(n2) / dble(n3)
-    end subroutine laplacian_3d
-
-    real(dl) function grad_energy_1d(n, f, Fk, dk)
-      integer :: n
-      real(C_DOUBLE), pointer :: f(:)
-      complex(C_DOUBLE_COMPLEX), pointer :: Fk(:)
-      real(dl) :: dk
-
-      integer :: i,ii,nn
-      real(dl) :: GE
-
-      type(C_PTR) :: planf, planb
-
-      nn = n/2+1
-      planf = fftw_plan_dft_r2c_1d(n, f, Fk, FFTW_ESTIMATE)
-      planb = fftw_plan_dft_c2r_1d(n, Fk, f, FFTW_ESTIMATE)
-      call fftw_execute_dft_r2c(planf, f, Fk)
-
-      GE = 0.
-      do i=1,n
-         if (i<=nn) then; ii = i-1; else; ii=n+1-i; endif
-         GE = GE + Fk(ii+1)*conjg(Fk(ii+1)) * (ii*dk)**2
-      enddo
-      GE = GE / n / n  ! add normalizations to average and correct unnormalized inverse DFT
-
-      grad_energy_1d = 0.5*GE
-    end function grad_energy_1d
-
-  end module fftw3
+end module fftw3

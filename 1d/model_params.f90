@@ -1,6 +1,8 @@
 #include "macros.h"
 #define XIND 1:this%nlat
 
+! TO DO : Fix normalization of chemical potential
+
 module Model_Params
   use constants, only : dl
   use Simulation
@@ -55,6 +57,13 @@ contains
     t_loc = 0.
   end subroutine set_model_parameters
 
+  subroutine set_oscillation_parameters(del, om)
+    real(dl), intent(in) :: del, om
+
+    delta = del
+    omega = om
+  end subroutine set_oscillation_parameters
+  
   subroutine initialize_trap_potential(this, amp, type)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: amp

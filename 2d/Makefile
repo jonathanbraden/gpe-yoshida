@@ -2,10 +2,9 @@
 FC = gfortran
 OMP = F
 PROF = F
-WARN = F
+WARN = T
 BENCH = F
 BENCH_FINE = F
-BLAS = T
 
 # Default FFTW Lib location
 #FFTW_DIR = /usr/local/fftw/fftw-3.3.4-gcc-5.1.0/
@@ -34,9 +33,9 @@ else ifeq ($(FC),gfortran)
 ifeq ($(OMP),T)
 	FFLAGS += -fopenmp
 endif
-	FOPT= -O3 #-fblas  (check this blas one to replace matmul calls)
+	FOPT= -O3 #-malign-double -fopt-info-vec-missed=missed.all #-ftree-vectorizer-verbose=5  #-fblas  (check this blas one to replace matmul calls)
 ifeq ($(WARN),T)
-	FFLAGS+= -Wall -fbounds-check -pedantic
+	FFLAGS+= -Wall -fcheck=array-temps,bounds -pedantic
 endif
 ifeq ($(PROF),T)
 	FFLAGS+= -g -pg
@@ -64,9 +63,6 @@ MACROS=
 ifeq ($(OMP),T)
 	MACROS+= -DUSEOMP=1
 endif
-ifeq ($(BLAS),T)
-	MACROS+= -DUSEBLAS=1
-endif
 ifeq ($(BENCH),T)
 	MACROS+= -DBENCHMARK=1
 endif
@@ -75,13 +71,14 @@ ifeq ($(BENCH_FINE),T)
 endif
 
 OBJS = constants.o utils.o fftw_mod_wtype.o fast_cheby_2d.o model_params.o lattice.o random_field.o equations.o equations_imaginary_time.o yoshida.o
-OBJS_INF = constants.o fast_cheby_2d.o lattice.o equations.o yoshida.o
+OBJS_BG = constants.o utils.o fftw_mod_wtype.o fast_cheby_2d.o model_params.o lattice.o equations_imaginary_time.o equations.o
+
 
 gp: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-2d evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
 
-gp_inf: %: $(OBJS_INF) evolve.o
-	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o gp-2d evolve.o $(OBJS_INF) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
+bg: %: $(OBJS_BG) solve_background.o
+	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o solve-bg solve_background.o $(OBJS_BG) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
 
 
 %.o: %.f90

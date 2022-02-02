@@ -31,9 +31,13 @@ contains
        this%v_trap = 0._dl
     case(2)
        this%v_trap = 0._dl
-    case(3)
+    case(3) ! Harmonic trap in both directions
        do j=1,this%ny
           this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+params(1)*this%yGrid(j)**2),32.)
+       enddo
+    case(4)  ! Trap only the y-direction
+       do j=1,this%ny
+          this%v_trap(:,j) = min(0.5_dl*params(1)*this%yGrid(j)**2,32.)
        enddo
     case default
        this%v_trap = 0._dl
@@ -263,7 +267,7 @@ contains
     do l = 1,this%nfld
        g_loc = g_self(l)
        amp = this%psi(XIND,1,l)**2 + this%psi(XIND,2,l)**2
-       phase = arctan2(this%psi(XIND,2,l),this%psi(XIND,1,l)
+       phase = atan2( this%psi(XIND,2,l), this%psi(XIND,1,l) )
 
        phase = phase + (g_loc*amp-mu)*dt
        amp = sqrt(amp)
@@ -321,18 +325,26 @@ contains
     enddo
   end subroutine evolve_interspecies_conversion
 
-  subroutine evolve_interspecies_conversion_oscillating_single(this,dt,fld_ind)
+  subroutine evolve_interspecies_conversion_w_osc_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: fld_ind
 
-    real(dl), dimension(1:this%nx,1:this%ny,1:2) :: dpsi
+    real(dl), dimension(XIND,1:2) :: dpsi
+    real(dl) :: dnu
     integer :: l
 
-    do l=1,this%nfld
+    nu_cur = nu(:,fld_ind)
+    nu_cur(fld_ind) = 0._dl
 
+    dpsi = 0._dl
+    do l=1,this%nfld
+       dnu = nu_cur(l)*dt + delta * ( sin(om*(tcur+dt)) - sim(om*tcur) )
+       dpsi(XIND,1) = dpsi(XIND,1) - dnu * this%psi(XIND,2,l)
+       dpsi(XIND,2) = dpsi(XIND,2) + dnu * this%psi(XIND,1,l)
     enddo
-  end subroutine evolve_interspecies_conversion_oscillating_single
+    this%psi(XIND,1:2,fld_ind) = this%psi(XIND,1:2,fld_ind) + dpsi
+  end subroutine evolve_interspecies_conversion_w_osc_single
   
   subroutine evolve_interspecies_scattering_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this

@@ -294,6 +294,29 @@ contains
     this%psi(XIND,1:2,fld_ind) = this%psi(XIND,1:2,fld_ind) + dpsi  
   end subroutine evolve_interspecies_conversion_single
 
+  ! Basic checks on the frequency of a homogeneous oscillation done
+  subroutine evolve_interspecies_conversion_w_osc_single(this,dt,fld_ind)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: fld_ind
+
+    real(dl), dimension(1:this%nlat,1:2) :: dpsi
+    real(dl), dimension(1:this%nfld) :: nu_cur
+    real(dl) :: dnu
+    integer :: l
+
+    nu_cur = nu(:,fld_ind)
+    nu_cur(fld_ind) = 0._dl
+    
+    dpsi = 0._dl
+    do l=1,this%nfld
+       dnu = nu_cur(l)*dt + delta*( sin(om*(tcur+dt))-sin(om*tcur) )
+       dpsi(XIND,1) = dpsi(XIND,1) - dnu * this%psi(XIND,2,l)
+       dpsi(XIND,2) = dpsi(XIND,2) + dnu * this%psi(XIND,1,l)
+    enddo
+    this%psi(XIND,1:2,fld_ind) = this%psi(XIND,1:2,fld_ind) + dpsi  
+  end subroutine evolve_interspecies_conversion_w_osc_single
+  
   !>@brief
   !> Evolve the interspecies conversion terms, stacked individually for each field
   subroutine evolve_interspecies_conversion(this,dt,fwd)

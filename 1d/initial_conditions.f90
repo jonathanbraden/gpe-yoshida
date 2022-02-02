@@ -5,6 +5,39 @@ module Initial_Conditions
 
 contains
 
+  subroutine rotate_condensate(this,dphi,ind)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dphi
+    integer, intent(in) :: ind
+
+    real(dl) :: amp, phi
+    integer :: i
+
+    do i=1,this%nlat
+       amp = sqrt(this%psi(i,1,ind)**2 + this%psi(i,2,ind)**2)
+       phi = atan2(this%psi(i,2,ind),this%psi(i,1,ind)) + dphi
+       this%psi(i,1,ind) = amp*cos(phi) 
+       this%psi(i,2,ind) = amp*sin(phi)
+    enddo
+  end subroutine rotate_condensate
+
+  subroutine global_rotation(this,dphi)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dphi
+
+    real(dl) :: amp, phi
+    integer :: i, l
+
+    do l=1,this%nfld
+       do i=1,this%nlat
+          amp = sqrt(this%psi(i,1,l)**2+this%psi(i,2,l)**2)
+          phi = atan2(this%psi(i,2,l),this%psi(i,1,l)) + dphi
+          this%psi(i,1,l) = amp*cos(phi)
+          this%psi(i,2,l) = amp*sin(phi)
+       enddo
+    enddo
+  end subroutine global_rotation
+  
   subroutine imprint_inhomogeneous_relative_phase(this,phi,i1,i2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: phi

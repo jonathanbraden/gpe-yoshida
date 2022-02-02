@@ -18,7 +18,7 @@ program Evolve_GPE
   ord = 4
   nf = 2
   call create_lattice(mySim,128,5._dl,nf)
-  call set_model_parameters(250.,0.,250.*0.1_dl,0._dl,nf)  
+  call set_model_parameters(100.,0.,100.*0.01_dl,0._dl,nf)  
   call initialize_trap_potential(mySim, 1._dl,3)
 
   call imprint_gaussian(mySim,1._dl)
@@ -33,12 +33,14 @@ program Evolve_GPE
   !  Check what happens if I divide by the field normalization
   ! No, problem is I don't have nu in the def. of chemical potential
   call set_chemical_potential(chemical_potential_full(mySim)/2.)
+
+  call rotate_condensate(mySim,0.3,2)
   
   dx = mySim%dx
   alpha = 8.
-  dt = dx**2/alpha
+  dt = dx**2/alpha 
   call write_lattice_data(mySim,50)
-  do i=1,100
+  do i=1,2000
      call step_lattice(mySim,dt,25,ord)
      call write_lattice_data(mySim,50)
   enddo
