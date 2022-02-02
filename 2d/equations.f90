@@ -77,6 +77,23 @@ contains
     end select
   end subroutine split_equations
 
+  subroutine split_equations_(this,dt,term)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    integer, intent(in) :: term
+
+    select case (term)
+    case (1,-1)
+       call evolve_gradient_trap_real(this,dt)
+    case (2,-2)
+       call evolve_self_scattering(this,dt)
+    case (3,-3)
+       call evolve_interspecies_conversion(this,dt,term>0)
+    case (4,-4)
+       call evolve_gradient_trap_imag(this,dt)
+    end select
+  end subroutine split_equations_
+  
   subroutine split_equations_schrodinger(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -307,8 +324,10 @@ contains
     integer :: st, en, step
 
     if (fwd) then
+       print*,"forward"
        st = 1; en = this%nfld; step = 1
     else
+       print*,"backward"
        st = this%nfld; en = 1; step = -1
     endif
 
@@ -316,6 +335,7 @@ contains
     ! To reduce memory footprint, try storing only x-axis, and adding an inner loop over y-indices here
     do m = st,en,step
        nu_cur = nu(:,m)
+       nu_cur(m) = 0._dl
        dpsi = 0._dl
        do l=1,this%nfld
           dpsi(XIND,1) = dpsi(XIND,1) - nu_cur(l) * dt * this%psi(XIND,2,l)

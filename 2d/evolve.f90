@@ -19,45 +19,45 @@ program Evolve_GPE
   
   nf = 2
 !  call create_lattice_rectangle(mySim, (/128,128/), (/64._dl,16._dl/), nf)
-  call create_lattice_rectangle(mySim, (/128,128/), (/ 8._dl, 2._dl /), nf)
-  !  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf) ! preheating
-!  call create_lattice(mySim, 128, 10.,nf)
+!  call create_lattice_rectangle(mySim, (/128,128/), (/ 8._dl, 2._dl /), nf)
+  call create_lattice_rectangle(mySim, (/256,256/), (/16.*32._dl,16.*32._dl/), nf) ! preheating
   call initialize_model_parameters(nf)
-  call set_model_parameters(100.,0.,0.,0.)
-  call initialize_trap(mySim,(/16./),3)
+  call set_model_parameters(1.,0.,0.01,0.)
+  call initialize_trap(mySim,(/16./),1)
 
 !!!!
 ! Set up initial conditions
 !!!!
 ! Solve for ICs in inhomogeneous bg
-  call imprint_gaussian_2d(mySim,(/1._dl,0.25_dl/))
-  call write_lattice_data(mySim,50)
-  call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15, error, ierror)
-!  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
+!  call imprint_gaussian_2d(mySim,(/1._dl,0.25_dl/))
+!  call write_lattice_data(mySim,50)
+!  call solve_background_w_grad_flow(mySim, 1.e-15, 1.e-15, error, ierror)
+  call imprint_homogeneous_relative_phase(mySim,0.125*twopi,0.)
 
   ! Stuff for the preheating calc
 !  call set_chemical_potential(chemical_potential_full(mySim))
 !  call set_chemical_potential(0.99) ! This is g-nu
 !  call rotate_condensate(mySim,0.1_dl,2)
-!  call add_white_noise(mySim,0.01)
+  call add_white_noise(mySim,0.01)
 
 !  call imprint_vortex(mySim,0.,0.)
   call write_lattice_data(mySim,50)
   print*,"basic mu is ", chemical_potential(mySim)
-  call set_chemical_potential(chemical_potential(mySim))
+  print*,"full mu is ", chemical_potential_full(mySim)
+  call set_chemical_potential(chemical_potential_full(mySim))
   
   ! Add some calculation of timescales
   ! m2eff = 2\sqrt{nu} ! Back ground oscillations
   ! om_k ~ dx^2
   ! Use dispersion relationship to set dt
   
-  dt = minval(mySim%dx)**2/8._dl
+  dt = minval(mySim%dx)**2/32._dl
   print*,"dt = ",dt*20
   call cpu_time(t1)
-  do i=1,500
-     call step_lattice(mySim,dt,20)
-     !     call write_lattice_data(mySim,50)
-     print*,"step ",i," time = ",mySim%time
+  do i=1,10
+     call step_lattice(mySim,dt,1)
+     call write_lattice_data(mySim,50)
+!     print*,"step ",i," time = ",mySim%time
   enddo
   call cpu_time(t2)
 
@@ -236,7 +236,7 @@ contains
     integer :: i,l
     real(dl), dimension(1:this%nx) :: phase, amp
 
-!    call initialize_rand(42,13)
+    call initialize_rand(42,13)
 
     do l=1,this%nfld
        do i=1,this%ny
@@ -246,5 +246,17 @@ contains
        enddo
     enddo
   end subroutine add_white_noise
+
+  subroutine initialize_rand(seed, seedfac)
+    integer, intent(in) :: seed, seedfac
+    integer :: nseed, i
+    integer, allocatable, dimension(:) :: seeds
+
+    call random_seed(size=nseed)
+    allocate(seeds(1:nseed))
+    seeds = seed + seedfac*(/ (i-1, i=1,nseed) /)
+    call random_seed(put=seeds)
+    deallocate(seeds)
+  end subroutine initialize_rand
   
 end program Evolve_GPE

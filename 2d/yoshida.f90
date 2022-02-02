@@ -32,11 +32,13 @@ contains
     enddo
     this%time = this%time + 0.5_dl*w1*dt
     call split_equations(this, w1*dt, n_terms)
+    !this%time_mid = this%time_mid + w1*dt
     do i=n_terms-1,2,-1
-       call split_equations(this, 0.5_dl*w1*dt,i)
+       call split_equations(this, 0.5_dl*w1*dt,-i)
     enddo
     this%time = this%time + 0.5_dl*w1*dt
     call split_equations(this,0.5_dl*(w1+w2)*dt,1)
+    !this%time_first = this%time_first + 0.5_dl*(w1+w2)*dt
   end subroutine symp_o2_step
   
   subroutine symp2(this,dt,nsteps)
