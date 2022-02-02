@@ -331,6 +331,7 @@ contains
     integer, intent(in) :: fld_ind
 
     real(dl), dimension(XIND,1:2) :: dpsi
+    real(dl), dimension(1:this%nfld) :: nu_cur
     real(dl) :: dnu
     integer :: l
 
@@ -339,7 +340,7 @@ contains
 
     dpsi = 0._dl
     do l=1,this%nfld
-       dnu = nu_cur(l)*dt + delta * ( sin(om*(tcur+dt)) - sim(om*tcur) )
+       dnu = nu_cur(l)*dt !+ delta * ( sin(om*(tcur+dt)) - sim(om*tcur) )
        dpsi(XIND,1) = dpsi(XIND,1) - dnu * this%psi(XIND,2,l)
        dpsi(XIND,2) = dpsi(XIND,2) + dnu * this%psi(XIND,1,l)
     enddo
