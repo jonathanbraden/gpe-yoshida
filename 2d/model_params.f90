@@ -51,10 +51,12 @@ contains
     
     call free_model_parameters()
     
-    allocate(g_self(1:nf))
-    allocate(g_vals(1:nf,1:nf))
-    allocate(g_cross(1:nf,1:nf))
-    allocate(nu(1:nf,1:nf))
+    allocate(g_self(1:nf)); g_self = 0._dl
+    allocate(g_vals(1:nf,1:nf)); g_vals = 0._dl
+    allocate(g_cross(1:nf,1:nf)); g_cross = 0._dl
+    allocate(nu(1:nf,1:nf)); nu = 0._dl
+
+    delta = 0._dl; omega = 0._dl
     nfld = nf
   end subroutine initialize_model_parameters
 

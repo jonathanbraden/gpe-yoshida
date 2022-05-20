@@ -1,6 +1,6 @@
 # Default to GNU compiler without OpenMP, no warnings and no profiling
 FC = gfortran
-OMP = F
+OMP = T
 PROF = F
 WARN = T
 BENCH = F

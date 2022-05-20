@@ -40,6 +40,8 @@ contains
     this%lSize(1:2) = len
     this%nFld = nf
 
+    ! To ensure vectorization, see what happens if I assign these
+    ! using FFTW's initialization
     allocate( this%psi(1:n,1:n,1:2,1:nf) )
     allocate( this%v_trap(1:this%nx,1:this%ny) )    
     allocate( this%xGrid(1:this%nx), this%yGrid(1:this%ny) )

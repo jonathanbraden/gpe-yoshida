@@ -1,5 +1,8 @@
 #include "macros.h"
 
+! Optimization choices
+!#define LOOP T
+
 module Equations
   use constants, only : dl, twopi
 #if defined(PERIODIC)
@@ -12,7 +15,7 @@ module Equations
   
   implicit none
 
-  integer, parameter :: n_terms = 5
+  integer, parameter :: n_terms = 4
  
 contains
     
@@ -63,25 +66,6 @@ contains
     real(dl), intent(in) :: dt
     integer, intent(in) :: term
 
-    select case (abs(term))
-    case (1)
-       call evolve_gradient_trap_real(this,dt)
-    case (2)
-       call evolve_self_scattering(this,dt)
-    case(3)
-       call evolve_interspecies_conversion_single(this,dt,1)
-    case(4)
-       call evolve_interspecies_conversion_single(this,dt,2)
-    case(5)
-       call evolve_gradient_trap_imag(this,dt)
-    end select
-  end subroutine split_equations
-
-  subroutine split_equations_(this,dt,term)
-    type(Lattice), intent(inout) :: this
-    real(dl), intent(in) :: dt
-    integer, intent(in) :: term
-
     select case (term)
     case (1,-1)
        call evolve_gradient_trap_real(this,dt)
@@ -92,7 +76,7 @@ contains
     case (4,-4)
        call evolve_gradient_trap_imag(this,dt)
     end select
-  end subroutine split_equations_
+  end subroutine split_equations
   
   subroutine split_equations_schrodinger(this,dt,term)
     type(Lattice), intent(inout) :: this
@@ -177,16 +161,30 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
-
-    do i_=1,this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,2,i_)
+    integer :: l
+#ifdef LOOP
+    integer :: i,j
+#endif
+    
+    do l = 1,this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,2,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
-       this%psi(XIND,1,i_) = this%psi(XIND,1,i_) - 0.5_dl*this%tPair%realSpace(XIND)*dt
+
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt,l) PRIVATE(i,j)
+       do j=1,this%ny
+          do i=1,this%nx
+             this%psi(i,j,1,l) = this%psi(i,j,1,l) - 0.5_dl*this%tPair%realSpace(i,j)*dt
+          enddo
+       enddo
+!$OMP END PARALLEL DO
+#else
+       this%psi(XIND,1,l) = this%psi(XIND,1,l) - 0.5_dl*this%tPair%realSpace(XIND)*dt
+#endif
     enddo
   end subroutine evolve_gradient_real
 
@@ -194,16 +192,30 @@ contains
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
 
-    integer :: i_
-
-    do i_=1,this%nFld
-       this%tPair%realSpace(XIND) = this%psi(XIND,1,i_)
+    integer :: l
+#ifdef LOOP
+    integer :: i,j
+#endif
+    
+    do l = 1,this%nFld
+       this%tPair%realSpace(XIND) = this%psi(XIND,1,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
-       this%psi(XIND,2,i_) = this%psi(XIND,2,i_) + 0.5_dl*this%tPair%realSpace(XIND)*dt
+
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt,l) PRIVATE(i,j)
+       do j=1,this%ny
+          do i=1,this%nx
+             this%psi(i,j,2,l) = this%psi(i,j,2,l) + 0.5_dl*this%tPair%realSpace(i,j)*dt
+          enddo
+       enddo
+!$OMP END PARALLEL DO
+#else
+       this%psi(XIND,2,l) = this%psi(XIND,2,l) + 0.5_dl*this%tPair%realSpace(XIND)*dt
+#endif
     enddo
   end subroutine evolve_gradient_imag
 
@@ -212,16 +224,31 @@ contains
     real(dl), intent(in) :: dt
 
     integer :: l
-
-    do l=1, this%nFld
+#ifdef LOOP
+    integer :: i,j
+#endif
+    
+    do l = 1,this%nFld
        this%tPair%realSpace(XIND) = this%psi(XIND,2,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
+
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt,l) PRIVATE(i,j)
+       do j=1,this%ny
+          do i=1,this%nx
+             this%psi(i,j,1,l) = this%psi(i,j,1,l) &
+                  - ( 0.5_dl*this%tPair%realSpace(i,j) - this%v_trap(i,j)*this%psi(i,j,2,l) )*dt
+          enddo
+       enddo
+!$OMP END PARALLEL DO
+#else
        this%psi(XIND,1,l) = this%psi(XIND,1,l)   &
             - ( 0.5_dl*this%tPair%realSpace(XIND) - this%v_trap(XIND)*this%psi(XIND,2,l) )*dt
+#endif
     enddo
   end subroutine evolve_gradient_trap_real
 
@@ -324,10 +351,8 @@ contains
     integer :: st, en, step
 
     if (fwd) then
-       print*,"forward"
        st = 1; en = this%nfld; step = 1
     else
-       print*,"backward"
        st = this%nfld; en = 1; step = -1
     endif
 
@@ -367,6 +392,37 @@ contains
     enddo
     this%psi(XIND,1:2,fld_ind) = this%psi(XIND,1:2,fld_ind) + dpsi
   end subroutine evolve_interspecies_conversion_w_osc_single
+
+  subroutine evolve_interspecies_conversion_w_osc(this,dt,fwd)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+    logical, intent(in) :: fwd
+
+    real(dl), dimension(XIND,1:2) :: dpsi
+    real(dl), dimension(1:this%nfld) :: nu_cur
+    real(dl) :: dnu, tcur
+    integer :: st, en, step
+    integer :: m, l
+
+    tcur = this%time
+    
+    if (fwd) then
+       st = 1; en = this%nfld; step = 1
+    else
+       st = this%nfld; en = 1; step = -1
+    endif
+
+    do m=st,en,step
+       nu_cur = nu(:,m); nu_cur(m) = 0._dl
+       dpsi = 0._dl
+       do l=1,this%nfld
+          dnu = nu_cur(l)*dt + delta * ( sin(omega*(tcur+dt)) - sin(omega*tcur) )
+          dpsi(XIND,1) = dpsi(XIND,1) - dnu * this%psi(XIND,2,l)
+          dpsi(XIND,2) = dpsi(XIND,2) + dnu * this%psi(XIND,1,l)
+       enddo
+       this%psi(XIND,1:2,m) = this%psi(XIND,1:2,m) + dpsi
+    enddo
+  end subroutine evolve_interspecies_conversion_w_osc
   
   subroutine evolve_interspecies_scattering_single(this,dt,fld_ind)
     type(Lattice), intent(inout) :: this
