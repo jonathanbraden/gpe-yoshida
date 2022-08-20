@@ -69,6 +69,7 @@ contains
     real(dl), intent(in) :: amp
     integer, intent(in), optional :: type
 
+    real(dl) :: r0, wid
     integer :: i
     integer :: type_
 
@@ -76,23 +77,67 @@ contains
     allocate( v_trap(1:this%nlat) )
 
     select case (type_)
-    case (1)
+    case (1)  ! No trap
        v_trap = 0._dl
-    case(2)
+    case (2)  ! Posch-Teller trap
        v_trap = -0.5_dl*amp*(amp+1._dl) / cosh(this%xGrid)**2
-    case(3)
+    case (3)  ! Harmonic Trap
        do i=1,this%nlat
-          v_trap(i) = min(0.5_dl*this%xGrid(i)**2,32.)
+          v_trap(i) = min(0.5_dl*this%xGrid(i)**2,amp)
        enddo
+    case (4)  ! Periodic Trap
+       do i=1,this%nlat
+          v_trap(i) = (cos(this%xGrid(i)) - 1._dl) + 0.5_dl*2.**2*sin(this%xGrid(i))**2
+       enddo
+    case (5)
+       wid = 0.01
+       do i=1,this%nlat
+          v_trap(i) = amp*(tanh((x-1.)/wid) - tanh((x+1.)/wid) + 2._dl)
+       enddo
+    case default
+       v_trap = 0._dl
     end select
        
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
-       write(99,*) this%xGrid(i), v_trap(i)
+       write(99,*) this%xGrid(i), v_trap(i), this%tPair%quad_weights(i)
     enddo
     close(99)
   end subroutine initialize_trap_potential
 
+  real(dl) function field_norm(this) result(norm)
+    type(Lattice), intent(inout) :: this
+    integer :: l
+    real(dl) :: norm_loc
+
+    norm = 0._dl
+    do l=1,this%nfld
+#if defined(PERIODIC)
+       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,1:this%nfld)**2)
+#elif defined(INFINITE)
+       norm_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
+#endif
+       norm = norm + norm_loc
+    enddo
+  end function field_norm
+
+  !!! Need to finish this !!!
+  real(dl) function field_quad(this) result(quad)
+    type(Lattice), intent(inout) :: this
+    integer :: l
+    real(dl) :: quad_loc
+
+    quad = 0._dl
+    do l=1,this%nfld
+#if defined(PERIODIC)
+       quad_loc = this%dx*sum( this%psi(1:this%nlat,1:2,1:this%nfld)**2 )
+#elif defined(INFINITE)
+       quad_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
+#endif
+       quad = quad + quad_loc
+    enddo
+  end function field_quad
+    
   ! Fix this to compute integral properly for cheby calculation
   ! This is missing the contributions from mu and cross-coupling g
   real(dl) function chemical_potential(this) result(mu)
@@ -170,37 +215,23 @@ contains
 
        mu_loc = mu_loc + v_trap*rho(:,i)
        do l=1,this%nfld
-          mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l) &
-               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) )
+          mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l)  &
+               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Is this correct?
        enddo
     enddo
+    
 #if defined(PERIODIC)
     mu = this%dx*sum(mu_loc)
 #elif defined(INFINITE)
     mu = sum(mu_loc*this%tPair%quad_weights)
 #endif
   end function chemical_potential_full
-
-  real(dl) function field_norm(this) result(norm)
-    type(Lattice), intent(inout) :: this
-    integer :: l
-    real(dl) :: norm_loc
-
-    norm = 0._dl
-    do l=1,this%nfld
-#if defined(PERIODIC)
-       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,1:this%nfld)**2)
-#elif defined(INFINITE)
-       norm_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
-#endif
-       norm = norm + norm_loc
-    enddo
-  end function field_norm
   
   real(dl) function energy(this) result(en)
     type(Lattice), intent(inout) :: this
 
     real(dl), dimension(1:this%nlat) :: rho2, en_loc
+    real(dl), dimension(1:this%nfld) :: nu_loc
     integer :: i, l
     real(dl) :: g_loc
 
@@ -208,7 +239,8 @@ contains
 
     do i=1,this%nfld
        g_loc = g_self(i)
-       rho2 = this%psi(XIND,1,1)**2 + this%psi(XIND,2,i)**2
+       nu_loc = nu(:,i) 
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2 
 
        do l=1,2
           this%tPair%realSpace = this%psi(XIND,l,i)
@@ -220,12 +252,36 @@ contains
           en_loc = en_loc - 0.5_dl*this%tPair%realSpace*this%psi(XIND,l,i)
        enddo
        en_loc = en_loc + v_trap*rho2 + 0.5_dl*g_loc*rho2**2
+       do l=1,this%nfld
+          en_loc = en_loc - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) )       
+       enddo
     enddo
+
 #if defined(PERIODIC)
     en = this%dx*sum(en_loc)
 #elif defined(INFINITE)
     en = sum(en_loc*this%tPair%quad_weights)
 #endif
   end function energy
-    
+
+#ifdef ADD_LPERP
+  !!
+  ! Fix this to compute separate lengths for each field
+  real(dl) function effective_length(this) result(leff)
+    type(Lattice), intent(inout) :: this
+
+    real(dl), dimension(1:this%nlat,1:this%nfld) :: rho, rho2
+    real(dl), dimension(1:this%nfld) :: npart
+    integer :: i
+
+    rho = this%psi(XIND,1,1:this%nfld)**2 + this%psi(XIND,2,1:this%nfld)**2
+    rho2 = rho**2
+
+    do i=1,this%nfld
+       npart(i) = sum(rho(XIND,i)*thi%tPair%quad_weights)
+    enddo
+       
+  end function effective_length
+#endif
+  
 end module model_params

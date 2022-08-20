@@ -5,6 +5,9 @@ module Initial_Conditions
 
 contains
 
+  !>@brief
+  !> Given initialized condensate densities,
+  !> rotate the phase of (ind)th condensate by phi
   subroutine rotate_condensate(this,dphi,ind)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dphi
@@ -21,6 +24,8 @@ contains
     enddo
   end subroutine rotate_condensate
 
+  !>@brief
+  !> Given initialized condensates, imprint a global phase of dphi
   subroutine global_rotation(this,dphi)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dphi
@@ -67,6 +72,36 @@ contains
     this%psi(1:this%nlat,1,i2) = amp*cos(phi)
     this%psi(1:this%nlat,2,i2) = amp*sin(phi)
   end subroutine imprint_relative_phase
+
+  !>@brief
+  !> Imprint a single-sine wave into the relative phase of two condensates
+  !
+  !>@param[inout] this - The lattice object whose fields we will modify
+  !>@param[in] phi0 - Amplitude of mean variation
+  !>@param[in] amp  - Amplitude of the sine wave
+  !>@param[in] wn   - Wavenumber of the imprinted sine wave
+  !>@param[in] i1   - First field in pair to give a relative phase
+  !>@param[in] i2   - Second field in pair to give a relative phase
+  !
+  !@todo - Fix this to use grid xVals to imprint the wave (instead of dx)
+  subroutine imprint_preheating_sine_wave(this, phi0, amp, wn, i1, i2)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: phi0, amp
+    integer, intent(in) :: wn
+    integer, intent(in) :: i1, i2
+
+    real(dl), parameter :: rho_ave = 1._dl
+    real(dl) :: knum
+    integer :: n
+
+    n = this%nLat
+    knum = twopi*wn/this%lSize
+    
+    this%psi(1:n,1,i1) = sqrt(rho_ave)  ! Real part of psi_1
+    this%psi(1:n,2,i1) = 0._dl          ! Imaginary part of psi_1
+    this%psi(1:n,1,i2) = sqrt(rho_ave)*cos( phi0 + amp*sin(knum*this%xGrid(1:n)) )
+    this%psi(1:n,2,i2) = sqrt(rho_ave)*sin( phi0 + amp*sin(knum*this%xGrid(1:n)) )
+  end subroutine imprint_preheating_sine_wave
   
   subroutine imprint_gaussian(this, sig2)
     type(Lattice), intent(inout) :: this
@@ -99,21 +134,7 @@ contains
        end select
     enddo
   end subroutine imprint_sech_eigen
-  
-  !>@brief
-  !> TO DO : Write this
-  !> Will initialize a (smoothed) version of the tight-binding ground state
-  subroutine imprint_tight_binding_vac(this, pot, chem_pot)
-    type(Lattice), intent(inout) :: this
-    real(dl), dimension(1:this%nlat), intent(in) :: pot
-    real(dl), intent(in) :: chem_pot
-    
-    real(dl), dimension(1:this%nlat) :: profile
-
-    profile = 0._dl
-    where ( (chem_pot-pot) > 0. ) profile = sqrt(chem_pot - pot) ! Need to include g 
-  end subroutine imprint_tight_binding_vac
-  
+   
   subroutine imprint_bright_soliton(this,eta,kappa)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: eta, kappa

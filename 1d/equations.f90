@@ -302,15 +302,16 @@ contains
 
     real(dl), dimension(1:this%nlat,1:2) :: dpsi
     real(dl), dimension(1:this%nfld) :: nu_cur
-    real(dl) :: dnu
+    real(dl) :: dnu, tcur
     integer :: l
 
+    tcur = 0._dl  ! Fix this
     nu_cur = nu(:,fld_ind)
     nu_cur(fld_ind) = 0._dl
     
     dpsi = 0._dl
     do l=1,this%nfld
-       dnu = nu_cur(l)*dt + delta*( sin(om*(tcur+dt))-sin(om*tcur) )
+       dnu = nu_cur(l)*dt + delta*( sin(omega*(tcur+dt))-sin(omega*tcur) )
        dpsi(XIND,1) = dpsi(XIND,1) - dnu * this%psi(XIND,2,l)
        dpsi(XIND,2) = dpsi(XIND,2) + dnu * this%psi(XIND,1,l)
     enddo
