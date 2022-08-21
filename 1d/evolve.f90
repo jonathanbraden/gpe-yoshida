@@ -94,10 +94,17 @@ contains
     real(dl), parameter :: eps = 1.e-15
     real(dl) :: lperp, nu_dim
     real(dl) :: chemP, en  ! Remove these in future
+    real(dl) :: period
+    integer :: log_u, lat_u
+    real(dl) :: dt
+    integer :: out_size
+    real(dl) :: alpha, dt_courant
+    real(dl) :: dt_period
+    integer :: bg_periods
+    real(dl) :: dt_1d
     
-    lSize = 10._dl; nf = 2
-
     ! TBD: Automate the calculation of lSize using TF approximation
+    lSize = 10._dl; nf = 2
     
     call create_lattice(mySim, nLat, lSize, nf)
     call set_model_parameters(g2, 0._dl, 0._dl, 0._dl, nf)
@@ -121,8 +128,34 @@ contains
     call set_chemical_potential(chemical_potential_full(mySim)/2._dl)  ! Check my norm here
     call rotate_condensate(mySim, phi0, 2)
 
-    ! Work out number of required time-steps, etc.
+    ! With units used here, period is (omega_phi T)/2 * (lperp / g2) / sqrt(nu_1d).  Approximate omega_phi T = 2pi
+    period = 0.5*twopi*lperp/sqrt(nu_1d)/g2
+    dt_period = period / 32
     
+    alpha = 8.; dt_courant = mySim%dx**2/alpha
+
+    dt = dt_courant ! change to a minimum somewhere
+    bg_periods = 5; out_size = int(period/dt) / 32
+    print*,"dt_out = ",dt*out_size, dt*out_size/period
+  
+    num_out = 32*bg_periods
+    print*,"t_final / period = ", dt*out_size*num_out/period
+  
+    dt_1d = dt*(g2/lperp)*sqrt(nu_1d)*2. ! Figure out what this is and re-express in 2d units
+
+    log_u = 51; lat_u = 50
+    open(unit=log_u,file='log.out')
+    write(log_u,*) "# Time (sim units), Chemical Potential, Energy, Field Norm, Time (mass units)"
+    write(log_u,*) 0., chemical_potential_full(mySim), energy(mySim), field_norm(mySim), 0.
+  
+    call write_lattice_data(mySim, lat_u)
+    do i=1,num_out
+       call step_lattice(mySim,dt,out_size,ord)
+       write(log_u,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), field_norm(mySim), dt_1d*out_size*i
+       call write_lattice_data(mySim, lat_u)
+    enddo
+    close(log_u)
+    close(lat_u)
   end subroutine run_trapped_background
 
   subroutine run_imprinted_wave(amp, wave_num, nLat)
