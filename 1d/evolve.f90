@@ -10,7 +10,7 @@ program Evolve_GPE
   implicit none
 
   !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
-  call run_imprinted_wave( 0.01, 1.e-5, 4, 128 )
+  call run_imprinted_wave( 0.01, 0.125*twopi, 1.e-5, 4, 128 )
   
 contains
 
@@ -97,9 +97,9 @@ contains
     close(lat_u)    
   end subroutine run_trapped_background
 
-  subroutine run_imprinted_wave(nu, amp, wave_num, nLat)
+  subroutine run_imprinted_wave(nu, phi0, amp, wave_num, nLat)
     real(dl), intent(in) :: nu
-    real(dl), intent(in) :: amp
+    real(dl), intent(in) :: phi0, amp
     integer, intent(in) :: wave_num
     integer, intent(in) :: nLat
     
@@ -107,7 +107,6 @@ contains
     integer :: nf
     real(dl) :: lSize
     integer :: u_log, u_fld
-    real(dl) :: phi0
     
     ! Time-stepping params to factor out
     real(dl) :: dt, dt_out
@@ -117,15 +116,16 @@ contains
     real(dl) :: chemP
     integer :: ord
 
+! Add a check that we're using a periodic lattice here
+    
     ord = 6
     nf = 2; lSize = 10._dl
-    phi0 = 0.125*twopi
     
     call create_lattice(mySim, nLat, lSize, nf)
-    call set_model_parameters(1._dl, 0._dl, 0._dl, nu, nf)
+    call set_model_parameters(1._dl, 0._dl, nu, 0._dl, nf)
     call initialize_trap_potential(mySim, 0._dl, 1)
 
-    ! Fix this
+    ! Check this
     chemP = 1._dl-nu
     call set_chemical_potential(chemP)
 
@@ -134,9 +134,9 @@ contains
     ! Work out time-stepping, etc.
     alpha = 16.
     dt = mySim%dx / alpha**2
-    period = twopi   ! This is approximate (missing sqrt(nu) piece)
-    out_size = 50  ! Fix this
-    out_steps = 500 ! Fix this
+    period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate (missing sqrt(nu) piece)
+    out_size = int(period/dt)/32  ! Fix this
+    out_steps = 32*5 ! Fix this
     
     u_log = 51; u_fld = 50
     open(unit=u_log, file='log.out')

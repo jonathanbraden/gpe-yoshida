@@ -177,6 +177,8 @@ contains
 #elif defined(INFINITE)
     mu = sum(mu_loc*this%tPair%quad_weights)
 #endif
+
+    ! Now I need to normalize to the particle number
   end function chemical_potential
 
   ! Fix this to compute integral properly for cheby calculation
@@ -187,6 +189,7 @@ contains
     real(dl), dimension(1:this%nlat,1:this%nfld) :: rho
     real(dl), dimension(1:this%nlat) :: mu_loc
     real(dl), dimension(1:this%nfld) :: g_loc, nu_loc
+    real(dl) :: fld_norm
     integer :: i,l
 
     mu = 0._dl
@@ -216,7 +219,7 @@ contains
        mu_loc = mu_loc + v_trap*rho(:,i)
        do l=1,this%nfld
           mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l)  &
-               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Is this correct?
+               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Does this have the correct norm?
        enddo
     enddo
     
@@ -225,6 +228,12 @@ contains
 #elif defined(INFINITE)
     mu = sum(mu_loc*this%tPair%quad_weights)
 #endif
+    ! Add normalization
+    fld_norm = 0._dl
+    do i=1,this%nfld
+       fld_norm = fld_norm + num_part(this,i)
+    enddo
+    mu = mu / fld_norm
   end function chemical_potential_full
   
   real(dl) function energy(this) result(en)
