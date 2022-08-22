@@ -9,7 +9,9 @@ program Evolve_GPE
   use Equations_imag
   implicit none
 
-  call run_trapped_background( 0.1, 10., 0.01, 128, 6)
+  !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
+  call run_imprinted_wave( 0.01, 1.e-5, 4, 128 )
+  
 contains
 
   !>@brief
@@ -95,51 +97,59 @@ contains
     close(lat_u)    
   end subroutine run_trapped_background
 
-  subroutine run_imprinted_wave(amp, wave_num, nLat)
+  subroutine run_imprinted_wave(nu, amp, wave_num, nLat)
+    real(dl), intent(in) :: nu
     real(dl), intent(in) :: amp
     integer, intent(in) :: wave_num
     integer, intent(in) :: nLat
     
     type(Lattice) :: mySim
     integer :: nf
-    real(dl) :: lSize, nu
-    integer :: u_log
-
+    real(dl) :: lSize
+    integer :: u_log, u_fld
+    real(dl) :: phi0
+    
     ! Time-stepping params to factor out
     real(dl) :: dt, dt_out
-    integer :: out_size
+    real(dl) :: alpha, period
+    integer :: out_size, out_steps
     integer :: i
     real(dl) :: chemP
     integer :: ord
 
     ord = 6
     nf = 2; lSize = 10._dl
-    nu = 1.e-2
+    phi0 = 0.125*twopi
     
     call create_lattice(mySim, nLat, lSize, nf)
     call set_model_parameters(1._dl, 0._dl, 0._dl, nu, nf)
     call initialize_trap_potential(mySim, 0._dl, 1)
 
-    ! Work on this
+    ! Fix this
     chemP = 1._dl-nu
     call set_chemical_potential(chemP)
 
-    call imprint_preheating_sine_wave(mySim, 0.125*twopi, 1.e-6, 2, 1, 2)
+    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_num, 1, 2)
 
     ! Work out time-stepping, etc.
-
-    u_log = 51
+    alpha = 8.
+    dt = mySim%dx / alpha**2
+    out_size = 50  ! Fix this
+    out_steps = 50 ! Fix this
+    
+    u_log = 51; u_fld = 50
     open(unit=u_log, file='log.out')
     write(u_log,*) "# Time (sim units), Chemical Potential, Energy, Field Norm"
-    write(u_log,*) "0., chemical_potential_full(mySim), energy(mySim), field_norm(mySim)"
+    write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), field_norm(mySim)
 
-    call write_lattice_data(mySim,50)
-    do i=1,1  ! fix this
+    call write_lattice_data(mySim,u_fld)
+    do i=1,out_steps  ! fix this
        call step_lattice(mySim, dt, out_size, ord)
        write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), field_norm(mySim)
-       call write_lattice_data(mySim, 50)
+       call write_lattice_data(mySim, u_fld)
     enddo
     close(u_log)
+    close(u_fld)
   end subroutine run_imprinted_wave
 
   subroutine run_preheating_symmetric(g2, nu, phi0, nLat, lSize)

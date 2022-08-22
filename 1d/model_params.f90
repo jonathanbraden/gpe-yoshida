@@ -100,7 +100,11 @@ contains
        
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
+#if defined(PERIODIC)
+       write(99,*), this%xGrid(i), v_trap(i), i*this%dx
+#elif defined(INFINITE)
        write(99,*) this%xGrid(i), v_trap(i), this%tPair%quad_weights(i)
+#endif
     enddo
     close(99)
   end subroutine initialize_trap_potential

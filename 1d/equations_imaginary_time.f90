@@ -123,7 +123,7 @@ contains
        
        this%tPair%realSpace = this%psi(XIND,1,i)
 #if defined(PERIODIC)
-       call laplacian_1d_wtype(this%tPair, this%dk
+       call laplacian_1d_wtype(this%tPair, this%dk)
 #elif defined(INFINITE)
        call laplacian_cheby_1d_mapped(this%tPair)
 #endif
