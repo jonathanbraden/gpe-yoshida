@@ -132,20 +132,21 @@ contains
     call imprint_preheating_sine_wave(mySim, phi0, amp, wave_num, 1, 2)
 
     ! Work out time-stepping, etc.
-    alpha = 8.
+    alpha = 16.
     dt = mySim%dx / alpha**2
+    period = twopi   ! This is approximate (missing sqrt(nu) piece)
     out_size = 50  ! Fix this
-    out_steps = 50 ! Fix this
+    out_steps = 500 ! Fix this
     
     u_log = 51; u_fld = 50
     open(unit=u_log, file='log.out')
-    write(u_log,*) "# Time (sim units), Chemical Potential, Energy, Field Norm"
-    write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), field_norm(mySim)
+    write(u_log,*) "# Time (sim units), Chemical Potential, Energy, n_1, n_2"
+    write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), num_part(mySim,1), num_part(mySim,2)
 
     call write_lattice_data(mySim,u_fld)
     do i=1,out_steps  ! fix this
        call step_lattice(mySim, dt, out_size, ord)
-       write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), field_norm(mySim)
+       write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), num_part(mySim,1), num_part(mySim,2)
        call write_lattice_data(mySim, u_fld)
     enddo
     close(u_log)

@@ -101,7 +101,7 @@ contains
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
 #if defined(PERIODIC)
-       write(99,*), this%xGrid(i), v_trap(i), i*this%dx
+       write(99,*), this%xGrid(i), v_trap(i), this%dx
 #elif defined(INFINITE)
        write(99,*) this%xGrid(i), v_trap(i), this%tPair%quad_weights(i)
 #endif
@@ -117,7 +117,7 @@ contains
     norm = 0._dl
     do l=1,this%nfld
 #if defined(PERIODIC)
-       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,1:this%nfld)**2)
+       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,l)**2)
 #elif defined(INFINITE)
        norm_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
 #endif
@@ -125,25 +125,21 @@ contains
     enddo
   end function field_norm
 
-  !!! Need to finish this !!!
-  real(dl) function field_quad(this) result(quad)
+  real(dl) function num_part(this, ind) result(npart)
     type(Lattice), intent(inout) :: this
-    integer :: l
-    real(dl) :: quad_loc
+    integer, intent(in) :: ind
 
-    quad = 0._dl
-    do l=1,this%nfld
+    npart = 0._dl
 #if defined(PERIODIC)
-       quad_loc = this%dx*sum( this%psi(1:this%nlat,1:2,1:this%nfld)**2 )
+    npart = this%dx*sum(this%psi(1:this%nlat,1:2,ind)**2)
 #elif defined(INFINITE)
-       quad_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
+    npart = sum( (this%psi(1:this%nlat,1,ind)**2+this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
 #endif
-       quad = quad + quad_loc
-    enddo
-  end function field_quad
-    
+  end function num_part
+  
   ! Fix this to compute integral properly for cheby calculation
   ! This is missing the contributions from mu and cross-coupling g
+  ! Also need to norm to field integral
   real(dl) function chemical_potential(this) result(mu)
     type(Lattice), intent(inout) :: this
     

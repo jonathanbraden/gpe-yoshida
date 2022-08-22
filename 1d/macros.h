@@ -1,2 +1,2 @@
-!#define PERIODIC
-#define INFINITE
+#define PERIODIC
+!#define INFINITE

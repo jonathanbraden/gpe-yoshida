@@ -50,12 +50,7 @@ contains
     this%dk = -1.
 #endif
 
-!#ifdef SPECTRAL
     allocate( this%psi(1:n,1:2,1:nf) )
-!#else
-!    allocate( this%psi(0:n+1,1:2,1:nf) )
-!#endif
-
   end subroutine create_lattice
 
   subroutine destroy_lattice(this)
