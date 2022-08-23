@@ -100,27 +100,22 @@ contains
        
     open(unit=99,file='trap.dat')
     do i=1,this%nlat
-#if defined(PERIODIC)
-       write(99,*), this%xGrid(i), v_trap(i), this%dx
-#elif defined(INFINITE)
-       write(99,*) this%xGrid(i), v_trap(i), this%tPair%quad_weights(i)
-#endif
+       write(99,*) this%xGrid(i), v_trap(i), this%quad_weights(i)
     enddo
     close(99)
   end subroutine initialize_trap_potential
 
   real(dl) function field_norm(this) result(norm)
     type(Lattice), intent(inout) :: this
-    integer :: l
+
+    integer :: n,l
     real(dl) :: norm_loc
 
+    n = this%nLat
     norm = 0._dl
+    
     do l=1,this%nfld
-#if defined(PERIODIC)
-       norm_loc = this%dx*sum(this%psi(1:this%nlat,1:2,l)**2)
-#elif defined(INFINITE)
-       norm_loc = sum( (this%psi(1:this%nlat,1,l)**2 + this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
-#endif
+       norm_loc = sum( (this%psi(1:n,1,l)**2 + this%psi(1:n,2,l)**2)*this%quad_weights(1:n) )
        norm = norm + norm_loc
     enddo
   end function field_norm
@@ -129,12 +124,11 @@ contains
     type(Lattice), intent(inout) :: this
     integer, intent(in) :: ind
 
+    integer :: n
+
+    n = this%nlat
     npart = 0._dl
-#if defined(PERIODIC)
-    npart = this%dx*sum(this%psi(1:this%nlat,1:2,ind)**2)
-#elif defined(INFINITE)
-    npart = sum( (this%psi(1:this%nlat,1,ind)**2+this%psi(1:this%nlat,2,l)**2)*this%tPair%quad_weights )
-#endif
+    npart = sum( (this%psi(1:n,1,ind)**2+this%psi(1:n,2,ind)**2)*this%quad_weights(1:n) )
   end function num_part
   
   ! Fix this to compute integral properly for cheby calculation
@@ -219,16 +213,11 @@ contains
        mu_loc = mu_loc + v_trap*rho(:,i)
        do l=1,this%nfld
           mu_loc = mu_loc + g_loc(l)*rho(:,i)*rho(:,l)  &
-               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Does this have the correct norm?
+               - nu_loc(l)*( this%psi(XIND,1,i)*this%psi(XIND,1,l) + this%psi(XIND,2,i)*this%psi(XIND,2,l) ) ! Check factors, etc. here
        enddo
     enddo
-    
-#if defined(PERIODIC)
-    mu = this%dx*sum(mu_loc)
-#elif defined(INFINITE)
-    mu = sum(mu_loc*this%tPair%quad_weights)
-#endif
-    ! Add normalization
+
+    mu = sum(mu_loc*this%quad_weights)
     fld_norm = 0._dl
     do i=1,this%nfld
        fld_norm = fld_norm + num_part(this,i)

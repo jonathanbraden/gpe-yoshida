@@ -64,7 +64,9 @@ contains
     
     ! Turn on nu, and rotate the condensate
     call set_model_parameters(g2,0.,nu_dim,0.,nf)
-    call set_chemical_potential(chemical_potential_full(mySim)/2._dl)  ! Check my norm here
+    ! Now that I've fixed up my chemical potential calculation, I think
+    ! this is incorrect and the factor of 1/2 should be removed
+    call set_chemical_potential(chemical_potential_full(mySim)/2._dl)
     call rotate_condensate(mySim, phi0, 2)
 
     ! With units used here, period is (omega_phi T)/2 * (lperp / g2) / sqrt(nu_1d).  Approximate omega_phi T = 2pi
@@ -105,17 +107,20 @@ contains
     
     type(Lattice) :: mySim
     integer :: nf
-    real(dl) :: lSize
+    real(dl) :: lSize ! Change this to be input
     integer :: u_log, u_fld
     
     ! Time-stepping params to factor out
     real(dl) :: dt, dt_out
     real(dl) :: alpha, period
     integer :: out_size, out_steps
+    integer :: num_periods, steps_per_period
     integer :: i
     real(dl) :: chemP
     integer :: ord
 
+    real(dl) :: w_tot, k_nyq
+    
 ! Add a check that we're using a periodic lattice here
     
     ord = 6
@@ -132,13 +137,21 @@ contains
     call imprint_preheating_sine_wave(mySim, phi0, amp, wave_num, 1, 2)
 
     ! Work out time-stepping, etc.
-    alpha = 16.
-    dt = mySim%dx / alpha**2
-    period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate (missing sqrt(nu) piece)
-    out_size = int(period/dt)/32  ! Fix this
-    out_steps = 32*5 ! Fix this
+    k_nyq = 0.5*twopi/mySim%dx
+    w_tot = k_nyq*sqrt(1._dl+0.25*k_nyq**2)
+    alpha = 16. ! define this as steps per Nyquist
+    dt = (twopi/w_tot)/alpha
     
-    u_log = 51; u_fld = 50
+    !dt = mySim%dx**2 / alpha
+    period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
+    steps_per_period = 32
+    out_size = int(period/dt)/steps_per_period  ! Fix this
+    num_periods = 5
+    out_steps = steps_per_period*num_periods 
+
+    ! Add determination of Floquet band, etc.
+    
+    u_log = 51; u_fld = 50 ! Automate these with newunit
     open(unit=u_log, file='log.out')
     write(u_log,*) "# Time (sim units), Chemical Potential, Energy, n_1, n_2"
     write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), num_part(mySim,1), num_part(mySim,2)

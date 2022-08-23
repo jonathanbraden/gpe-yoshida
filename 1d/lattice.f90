@@ -12,6 +12,7 @@ module Simulation
   type Lattice
      real(dl), dimension(:,:,:), allocatable :: psi
      real(dl), dimension(:), allocatable :: xGrid
+     real(dl), dimension(:), allocatable :: quad_weights
      real(dl) :: time
      integer :: nlat, nFld
      real(dl) :: dx, lSize, dk
@@ -37,15 +38,18 @@ contains
     this%nFld = nf
 
     allocate(this%xGrid(1:n))
+    allocate(this%quad_weights(1:n))
 
 #if defined(PERIODIC)
     this%dx = len/dble(n); this%dk = twopi/len
     call initialize_transform_1d(this%tPair, n)
-    this%xGrid = [ ( this%dx*dble(i_-1)-0.5_dl*this%lSize , i_ = 1,n ) ] 
+    this%xGrid = [ ( this%dx*dble(i_-1)-0.5_dl*this%lSize , i_ = 1,n ) ]
+    this%quad_weights(:) = this%dx
 #elif defined(INFINITE)
     call initialize_transform_cheby_1d(this%tPair,n,1)
     call transform_rational_cheby(this%tPair,len)
     this%xGrid = this%tPair%xGrid
+    this%quad_weights(:) = this%tPair%quad_weights(:)
     this%dx = minval( abs( this%xGrid(2:)-this%xGrid(:this%nlat-1) ) )
     this%dk = -1.
 #endif
@@ -85,7 +89,7 @@ contains
     logical :: o
 
     inquire(opened=o,unit=fNum)
-    if (.not.o) open(unit=fNum,file='fields.bin',access='stream')
+    if (.not.o) open(unit=fNum,file='fields.bin',access='stream',status='new')
 
     write(fNum) this%psi(1:this%nlat,:,:)    
   end subroutine write_lattice_data
