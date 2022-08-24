@@ -146,7 +146,7 @@ contains
     period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
     steps_per_period = 32
     out_size = int(period/dt)/steps_per_period  ! Fix this
-    num_periods = 5
+    num_periods = 10
     out_steps = steps_per_period*num_periods 
 
     ! Add determination of Floquet band, etc.
