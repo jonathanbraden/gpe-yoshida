@@ -10,7 +10,7 @@ program Evolve_GPE
   implicit none
 
   !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
-  call run_imprinted_wave( 0.01, 0.125*twopi, 1.e-5, 4, 128 )
+  call run_imprinted_wave( 0.01, 0.2*twopi, 1.e-4, 4, 512 )
   
 contains
 
@@ -53,7 +53,7 @@ contains
     ! Solve for the inhomogeneous background
     call imprint_gaussian(mySim,1._dl)
     call solve_background_w_grad_flow(mySim, eps, eps)
-ql
+
     ! Convert to parameters of 2D simulation
     chemP = chemical_potential(mySim)
     en = energy(mySim)
@@ -145,26 +145,27 @@ ql
     
     k_floq = phi0/2./2.**0.5  ! in units of m
     wave_floq = int(lSize*phi0/twopi/2./2.**0.5)
+    print*,"Floquet wavenumber is ",wave_floq
     
-    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_floq, 1, 2)
+    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_floq/2, 1, 2)
     
     period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
     steps_per_period = 32
     out_size = int(period/dt)/steps_per_period  ! Fix this
-    num_periods = 10
+    num_periods = 50
     out_steps = steps_per_period*num_periods 
 
     ! Add determination of Floquet band, etc.
     
     u_log = 51; u_fld = 50 ! Automate these with newunit
     open(unit=u_log, file='log.out')
-    write(u_log,*) "# Time (sim units), Chemical Potential, Energy, n_1, n_2"
-    write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), num_part(mySim,1), num_part(mySim,2)
+    write(u_log,*) "# Time (sim units), Chemical Potential, Energy, Time (mass units), n_1, n_2"
+    write(u_log,*) 0., chemical_potential_full(mySim), energy(mySim), 0., num_part(mySim,1), num_part(mySim,2)
 
     call write_lattice_data(mySim,u_fld)
     do i=1,out_steps  ! fix this
        call step_lattice(mySim, dt, out_size, ord)
-       write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), num_part(mySim,1), num_part(mySim,2)
+       write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), 2._dl*sqrt(nu)*dt*out_size*i, num_part(mySim,1), num_part(mySim,2)
        call write_lattice_data(mySim, u_fld)
     enddo
     close(u_log)
