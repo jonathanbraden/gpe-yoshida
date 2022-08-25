@@ -53,7 +53,7 @@ contains
     ! Solve for the inhomogeneous background
     call imprint_gaussian(mySim,1._dl)
     call solve_background_w_grad_flow(mySim, eps, eps)
-
+ql
     ! Convert to parameters of 2D simulation
     chemP = chemical_potential(mySim)
     en = energy(mySim)
@@ -119,30 +119,35 @@ contains
     real(dl) :: chemP
     integer :: ord
 
-    real(dl) :: w_tot, k_nyq
+    real(dl) :: w_tot, k_nyq, k_floq
+    real(dl) :: lSize_heal
+    integer :: wave_floq
     
 ! Add a check that we're using a periodic lattice here
     
     ord = 6
-    nf = 2; lSize = 10._dl
-    
-    call create_lattice(mySim, nLat, lSize, nf)
+    nf = 2; lSize = 100._dl
+
+    lSize_heal = lSize / (2.*sqrt(nu))
+    call create_lattice(mySim, nLat, lSize_heal, nf)
     call set_model_parameters(1._dl, 0._dl, nu, 0._dl, nf)
     call initialize_trap_potential(mySim, 0._dl, 1)
 
     ! Check this
     chemP = 1._dl-nu
     call set_chemical_potential(chemP)
-
-    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_num, 1, 2)
-
+    
     ! Work out time-stepping, etc.
     k_nyq = 0.5*twopi/mySim%dx
     w_tot = k_nyq*sqrt(1._dl+0.25*k_nyq**2)
     alpha = 16. ! define this as steps per Nyquist
     dt = (twopi/w_tot)/alpha
     
-    !dt = mySim%dx**2 / alpha
+    k_floq = phi0/2./2.**0.5  ! in units of m
+    wave_floq = int(lSize*phi0/twopi/2./2.**0.5)
+    
+    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_floq, 1, 2)
+    
     period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
     steps_per_period = 32
     out_size = int(period/dt)/steps_per_period  ! Fix this
