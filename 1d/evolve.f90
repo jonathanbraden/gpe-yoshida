@@ -116,10 +116,9 @@ contains
     integer :: out_size, out_steps
     integer :: num_periods, steps_per_period
     integer :: i
-    real(dl) :: chemP
     integer :: ord
 
-    real(dl) :: w_tot, k_nyq, k_floq
+    real(dl) :: w_tot, k_floq
     real(dl) :: lSize_heal
     integer :: wave_floq
     
@@ -133,14 +132,9 @@ contains
     call set_model_parameters(1._dl, 0._dl, nu, 0._dl, nf)
     call initialize_trap_potential(mySim, 0._dl, 1)
 
-    ! Check this
-    chemP = 1._dl-nu
-    call set_chemical_potential(chemP)
+    call set_chemical_potential(1._dl-nu)
     
-    ! Work out time-stepping, etc.
-    !k_nyq = 0.5*twopi/mySim%dx
-    !w_tot = k_nyq*sqrt(1._dl+0.25*k_nyq**2)
-
+    ! Work out time-stepping
     w_tot = nyquist_freq(mySim)
     alpha = 16. ! define this as steps per Nyquist
     dt = (twopi/w_tot)/alpha
