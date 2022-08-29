@@ -10,7 +10,7 @@ program Evolve_GPE
   implicit none
 
   !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
-  call run_imprinted_wave( 0.01, 0.2*twopi, 1.e-4, 4, 512 )
+  call run_imprinted_wave( 0.01, 0.4*twopi, 1.e-4, 4, 512 )
   
 contains
 
@@ -138,8 +138,10 @@ contains
     call set_chemical_potential(chemP)
     
     ! Work out time-stepping, etc.
-    k_nyq = 0.5*twopi/mySim%dx
-    w_tot = k_nyq*sqrt(1._dl+0.25*k_nyq**2)
+    !k_nyq = 0.5*twopi/mySim%dx
+    !w_tot = k_nyq*sqrt(1._dl+0.25*k_nyq**2)
+
+    w_tot = nyquist_freq(mySim)
     alpha = 16. ! define this as steps per Nyquist
     dt = (twopi/w_tot)/alpha
     
@@ -172,6 +174,19 @@ contains
     close(u_fld)
   end subroutine run_imprinted_wave
 
+  !>@brief
+  !> Return the angular frequency of the Nyquist mode for the total phase.
+  !> Currently assumes symmetric condensate sitting at a minima
+  real(dl) function nyquist_freq(this) result(om)
+    type(Lattice), intent(in) :: this
+
+    real(dl) :: k_nyq
+    k_nyq = 0.5_dl*twopi/this%dx
+
+    om = k_nyq*sqrt(1._dl + 0.25_dl*k_nyq**2)
+  end function nyquist_freq
+
+  
   subroutine run_preheating_symmetric(g2, nu, phi0, nLat, lSize)
     real(dl), intent(in) :: g2, nu, phi0
     integer, intent(in) :: nLat
