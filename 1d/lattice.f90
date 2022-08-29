@@ -4,7 +4,8 @@ module Simulation
   use constants, only : dl, twopi
 #if defined(PERIODIC)
   use fftw3
-#elif defined(INFINITE)
+#else
+!#elif defined(INFINITE)
   use Fast_Cheby
 #endif
   implicit none
@@ -13,12 +14,13 @@ module Simulation
      real(dl), dimension(:,:,:), allocatable :: psi
      real(dl), dimension(:), allocatable :: xGrid
      real(dl), dimension(:), allocatable :: quad_weights
-     real(dl) :: time
-     integer :: nlat, nFld
      real(dl) :: dx, lSize, dk
+     integer :: nLat, nFld
+     real(dl) :: time
 #if defined(PERIODIC)     
      type(transformPair1D) :: tPair
-#elif defined(INFINITE)
+#else
+!#elif defined(INFINITE)
      type(chebyshevPair1D) :: tPair
 #endif
   end type Lattice

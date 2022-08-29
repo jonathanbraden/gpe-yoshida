@@ -1,3 +1,5 @@
+#include "macros.h"
+
 program Evolve_GPE
   use, intrinsic :: iso_c_binding
   use constants, only : dl, twopi
@@ -8,12 +10,17 @@ program Evolve_GPE
   use Equations
   use Equations_imag
   implicit none
-
+  
+  type TimeParams
+     real(dl) :: dt, dtout, alpha
+     integer :: nstep, nout_step, out_step_size
+  end type TimeParams
+  
   !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
-  call run_imprinted_wave( 0.01, 0.4*twopi, 1.e-4, 4, 512 )
+  call run_imprinted_wave( 0.01, 0.2*twopi, 1.e-4, 0.5_dl, 2, 512, 6 )
   
 contains
-
+  
   !>@brief
   !> Run time evolution for trapped background evolution.
   !> The inputs are:
@@ -27,9 +34,9 @@ contains
     integer, intent(in) :: nLat, ord
 
     type(Lattice) :: mySim
+    real(dl), parameter :: eps = 1.e-15
     real(dl) :: lSize
     integer :: nf
-    real(dl), parameter :: eps = 1.e-15
     real(dl) :: lperp, nu_dim
     real(dl) :: chemP, en  ! Remove these in future
     real(dl) :: period
@@ -48,7 +55,7 @@ contains
     
     call create_lattice(mySim, nLat, lSize, nf)
     call set_model_parameters(g2, 0._dl, 0._dl, 0._dl, nf)
-    call initialize_trap_potential(mySim, 32._dl,3)
+    call initialize_trap_potential(mySim, 32._dl, 3)
 
     ! Solve for the inhomogeneous background
     call imprint_gaussian(mySim,1._dl)
@@ -99,59 +106,59 @@ contains
     close(lat_u)    
   end subroutine run_trapped_background
 
-  subroutine run_imprinted_wave(nu, phi0, amp, wave_num, nLat)
-    real(dl), intent(in) :: nu
-    real(dl), intent(in) :: phi0, amp
+  subroutine run_imprinted_wave(nu, phi0, amp, floq_frac, wave_num, nLat, ord)
+    real(dl), intent(in) :: nu, phi0, amp, floq_frac
     integer, intent(in) :: wave_num
-    integer, intent(in) :: nLat
+    integer, intent(in) :: nLat, ord
     
     type(Lattice) :: mySim
     integer :: nf
-    real(dl) :: lSize ! Change this to be input
-    integer :: u_log, u_fld
+    real(dl) :: lSize, lyap
     
-    ! Time-stepping params to factor out
+    integer :: u_log, u_fld
+    integer :: i
+    
+    ! Time-stepping params to factor out (can shove into a subroutine)
     real(dl) :: dt, dt_out
     real(dl) :: alpha, period
     integer :: out_size, out_steps
     integer :: num_periods, steps_per_period
-    integer :: i
-    integer :: ord
 
     real(dl) :: w_tot, k_floq
     real(dl) :: lSize_heal
-    integer :: wave_floq
     
-! Add a check that we're using a periodic lattice here
+#ifndef PERIODIC
+    stop "Error, trying to run preheating simulation without periodic BCs"
+#endif
     
-    ord = 6
-    nf = 2; lSize = 100._dl
-
+    nf = 2
+    k_floq = 0.5_dl*phi0/sqrt(2._dl)
+    k_floq = k_floq*floq_frac
+    lyap = 0.25*k_floq*sqrt(phi0**2-4._dl*k_floq**2)   ! Check this
+    lyap = lyap / (2.*sqrt(nu))                        ! Check this
+    lSize = twopi/k_floq*wave_num
     lSize_heal = lSize / (2.*sqrt(nu))
+
+    print*,"Lyap = ",lyap
+    
     call create_lattice(mySim, nLat, lSize_heal, nf)
     call set_model_parameters(1._dl, 0._dl, nu, 0._dl, nf)
     call initialize_trap_potential(mySim, 0._dl, 1)
 
     call set_chemical_potential(1._dl-nu)
+
+    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_num, 1, 2)
     
     ! Work out time-stepping
     w_tot = nyquist_freq(mySim)
-    alpha = 16. ! define this as steps per Nyquist
+    alpha = 16.
     dt = (twopi/w_tot)/alpha
-    
-    k_floq = phi0/2./2.**0.5  ! in units of m
-    wave_floq = int(lSize*phi0/twopi/2./2.**0.5)
-    print*,"Floquet wavenumber is ",wave_floq
-    
-    call imprint_preheating_sine_wave(mySim, phi0, amp, wave_floq/2, 1, 2)
     
     period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
     steps_per_period = 32
     out_size = int(period/dt)/steps_per_period  ! Fix this
-    num_periods = 50
+    num_periods = 150
     out_steps = steps_per_period*num_periods 
-
-    ! Add determination of Floquet band, etc.
     
     u_log = 51; u_fld = 50 ! Automate these with newunit
     open(unit=u_log, file='log.out')
@@ -164,8 +171,7 @@ contains
        write(u_log,*) dt*out_size*i, chemical_potential_full(mySim), energy(mySim), 2._dl*sqrt(nu)*dt*out_size*i, num_part(mySim,1), num_part(mySim,2)
        call write_lattice_data(mySim, u_fld)
     enddo
-    close(u_log)
-    close(u_fld)
+    close(u_log); close(u_fld)
   end subroutine run_imprinted_wave
 
   !>@brief
@@ -176,7 +182,6 @@ contains
 
     real(dl) :: k_nyq
     k_nyq = 0.5_dl*twopi/this%dx
-
     om = k_nyq*sqrt(1._dl + 0.25_dl*k_nyq**2)
   end function nyquist_freq
 
@@ -216,5 +221,5 @@ contains
     print*,"full one is ", chemical_potential_full(sim)
     print*,"field norm is ",field_norm(sim)
   end subroutine summarise_ic
-  
+
 end program Evolve_GPE
