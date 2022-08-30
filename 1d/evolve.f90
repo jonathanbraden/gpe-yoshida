@@ -134,12 +134,11 @@ contains
     nf = 2
     k_floq = 0.5_dl*phi0/sqrt(2._dl)
     k_floq = k_floq*floq_frac
-    lyap = 0.25*k_floq*sqrt(phi0**2-4._dl*k_floq**2)   ! Check this
+    lyap = get_lyap(k_floq,phi0)
     lyap = lyap / (2.*sqrt(nu))                        ! Check this
+
     lSize = twopi/k_floq*wave_num
     lSize_heal = lSize / (2.*sqrt(nu))
-
-    print*,"Lyap = ",lyap
     
     call create_lattice(mySim, nLat, lSize_heal, nf)
     call set_model_parameters(1._dl, 0._dl, nu, 0._dl, nf)
@@ -157,7 +156,7 @@ contains
     period = 0.5_dl*twopi/sqrt(nu)   ! This is approximate.  Improve
     steps_per_period = 32
     out_size = int(period/dt)/steps_per_period  ! Fix this
-    num_periods = 150
+    num_periods = 50
     out_steps = steps_per_period*num_periods 
     
     u_log = 51; u_fld = 50 ! Automate these with newunit
@@ -185,6 +184,10 @@ contains
     om = k_nyq*sqrt(1._dl + 0.25_dl*k_nyq**2)
   end function nyquist_freq
 
+  real(dl) function get_lyap(k,phi0) result(lyap)
+    real(dl), intent(in) :: k, phi0
+    lyap = 0.25_dl*k*sqrt(phi0**2 - 4._dl*k**2)
+  end function get_lyap
   
   subroutine run_preheating_symmetric(g2, nu, phi0, nLat, lSize)
     real(dl), intent(in) :: g2, nu, phi0

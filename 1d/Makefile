@@ -95,3 +95,7 @@ clean:
 	rm -f *.o
 	rm -f *.mod
 	rm -f gp-1d gp-bg
+
+cleandat:
+	rm -f log.out
+	rm -f fields.bin
