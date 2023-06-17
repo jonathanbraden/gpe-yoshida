@@ -2,7 +2,7 @@
 Yoshida Implementation of Coupled Gross-Pitaevskii Equations
 
 This code solves the coupled GPEs describing dilute gas cold atom Bose Einstein condensates.
-Facilities are provided for doing both real-time evolution and obtaining the ground state (via imaginary time evolution).
+Facilities are provided for doing both real-time evolution and obtaining the ground state (via imaginary time evolution in the form of a normalized gradient descent).
 
 ## Real-Time Evolution
 
