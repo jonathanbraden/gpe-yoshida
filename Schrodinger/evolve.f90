@@ -14,56 +14,125 @@ program Evolve_GPE
 
   real(dl) :: dt
   integer :: i
-  real(dl) :: trap_ratio, w_rat, grad_ratio, m2_
+  real(dl) :: trap_param, fld_norm, grad_ratio, m2_
+  real(dl) :: m2_mean
+  
+
+  ! k_eff = 2/pi k_nyq = 2/dx => w2_eff = m2 + 4./dx**2
   
   nf = 1
-  trap_ratio = 2.
-  w_rat = 1. ! try various values to set hbar
-  !call create_lattice_rectangle(mySim, (/256,256/), (/w_rat*4.*twopi,w_rat*4.*twopi/), nf)
-  call create_lattice_rectangle(mySim, (/128,128/), (/32._dl,32._dl/), nf)
+  trap_param = 2.
+  fld_norm = 1. ! try various values to set hbar
+  !call create_lattice_rectangle(mySim, (/128,128/), (/fld_norm*4.*twopi,fld_norm*4.*twopi/), nf)
+  !call create_lattice_rectangle(mySim, (/128,128/), (/32._dl,32._dl/), nf)
 
+  call create_lattice_rectangle(mySim, (/128,128/), (/2.**0.5*fld_norm*3.*twopi,2.**0.5*fld_norm*3.*twopi/), nf)
+
+  ! TBD: Figure out all annoying normalizations ...
+  ! Coherent state in harmonic trap
   ! For harmonic trap aligned on axes
-  trap_ratio = 2._dl
-  call initialize_trap(mySim,(/trap_ratio/),3)
-  !call imprint_gaussian_2d( mySim, (/1.,1./sqrt(trap_ratio)/) )
-  call imprint_coherent_state( mySim, (/1.,1./sqrt(trap_ratio)/), 3. )
-  mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(trap_ratio))
+  grad_ratio = 0.125*(0.1*twopi)**2
+  ! mu = phi0^2 / 16.
+  !call initialize_trap(mySim,(/1._dl/), 2, fld_norm, grad_ratio)
+  call initialize_trap(mySim,(/1._dl/), 3, fld_norm, grad_ratio)
+  m2_mean = cos(0.1*twopi)
+  ! k^2 < phi0^2 / 4 -> k^2_eff
+  ! dx = 2 / sqrt(grad_ratio) -> grad_ratio = 4 / dx**2 = (2/pi * k_nyq)**2
+  m2_ = 1.+grad_ratio 
+  call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), 0.1*twopi )
+  !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
+  !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
+  mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
   
-  ! For harmonic trap not aligned on axes
-  !grad_ratio = 2.
-  !call initialize_trap(mySim,(/grad_ratio/),2)
-  !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(1.+grad_ratio)/) )
-  !mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(1.+grad_ratio))
-
   ! For BEC potential
-  !trap_ratio = 1.4
-  !grad_ratio = 0.2_dl !0.5 ! / 10. for mid
-  !m2_ = 1.-1._dl/trap_ratio**2
-  !call initialize_trap(mySim,(/trap_ratio,grad_ratio,w_rat/),6)
-  !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
-  !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
+  trap_param = 1.4
+  grad_ratio = 0.6_dl !0.5 ! / 10. for mid
+  m2_ = 1.-1._dl/trap_param**2
+  !call initialize_trap(mySim,(/trap_param/),6, fld_norm, grad_ratio)
+  !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
+  !call initialize_trap(mySim,(/trap_param/),7, fld_norm, grad_ratio)
+  !call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
+
+  !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
+  
   !trap_ratio = 100.
   !grad_ratio = 0.
   !m2_ = trap_ratio**2-1._dl
-  !call initialize_trap(mySim,(/trap_ratio,grad_ratio/),5)
+  !call initialize_trap(mySim,(/trap_ratio/),5, fld_norm, grad_ratio)
   !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
   !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
   
-  ! call solve_background_w_grad_flow()  ! If I want automation
-
   call write_lattice_data(mySim, 50)
-  ! call set_chemical_potential() ! Replace this with E_gs and subtract off potential
 
   dt = 1./512.
-  do i=1,200
-     call step_lattice(mySim,dt,64)
+  do i=1,1000
+     call step_lattice(mySim,dt,128)
      call write_lattice_data(mySim,50)
      print*,"step ",i," time = ",mySim%time
   enddo
   
 contains
 
+  subroutine test_sho(n, lSize, keff, diag)
+    integer, intent(in) :: n
+    real(dl), intent(in) :: lSize
+    real(dl), intent(in) :: keff
+    ! Not Yet Implemented
+    logical, intent(in) :: diag  ! Whether or not to diagonalize the matrix
+
+    type(Lattice) :: mySim
+    integer :: nf
+    real(dl) :: energy
+    real(dl) :: grad_ratio ! convert to keff
+
+    real(dl) :: dt
+    integer :: i
+    
+    nf = 1
+    call create_lattice_rectangle(mySim, (/n,n/), (/lSize,lSize/), nf)
+
+    grad_ratio = 2.
+    energy = 0.5_dl*(1._dl + sqrt(1.+grad_ratio))
+    call initialize_trap(mySim,(/grad_ratio/),2,1._dl,grad_ratio)
+    mySim%v_trap = mySim%v_trap - energy
+    
+    call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(1.+grad_ratio)/) )
+
+    call write_lattice_data(mySim, 50)
+    
+    dt = 1./512.
+    do i=1,200
+       call step_lattice(mySim,dt,64)
+       call write_lattice_data(mySim,50)
+       print*,"step ",i," time = ",mySim%time
+    enddo
+  end subroutine test_sho
+
+  subroutine test_coherent_state()
+  end subroutine test_coherent_state
+
+  ! Simulate tunneling in BEC potential
+  subroutine evolve_bec_tunneling(lVal, keff, fld_norm, nLat )
+    real(dl), intent(in) :: lVal, keff, fld_norm
+    integer, intent(in) :: nLat
+
+    type(Lattice) :: mySim
+    real(dl) :: m2_
+    
+    call create_lattice_rectangle(mySim, (/nLat,nLat/), (/fld_norm*4.*twopi,fld_norm*4.*twopi/), nf)
+
+    ! Fix this to use keff
+    grad_ratio = 0.2_dl !0.5 ! / 10. for mid
+    m2_ = 1.-1._dl/lVal**2
+    call initialize_trap(mySim,(/lVal, grad_ratio/), 6, fld_norm, grad_ratio)
+    mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
+    
+    call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
+    
+  end subroutine evolve_bec_tunneling
+  
+  ! Move these to another file
   subroutine imprint_gaussian_2d(this,sig2)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(1:2), intent(in) :: sig2
@@ -79,6 +148,29 @@ contains
     this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2
   end subroutine imprint_gaussian_2d
 
+  
+  ! Imprint Gaussian initial state in the diagonalized quadratic basis
+  ! Need to check all coefficients, etc. in here
+  subroutine imprint_gaussian_2d_diag(this,sig2)
+    type(Lattice), intent(inout) :: this
+    real(dl), dimension(1:2), intent(in) :: sig2
+    real(dl), dimension(1:this%nx,this%nfld,2) :: coord
+    real(dl) :: norm
+    integer :: j,l
+
+    norm = 1._dl / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
+    this%psi = 0._dl
+    do j = 1,this%ny
+       do l=1,this%nfld
+          coord(:,l,1) = (this%xGrid(:) + this%yGrid(j))/sqrt(2.)
+          coord(:,l,2) = (this%yGrid(j) - this%xGrid(:))/sqrt(2.)
+          
+          this%psi(1:this%nx,j,1,l) = norm*exp( -0.5_dl*(coord(:,l,1)**2/sig2(1)+coord(:,l,2)**2/sig2(2)) )
+       enddo
+    enddo
+    
+  end subroutine imprint_gaussian_2d_diag
+  
   subroutine imprint_transverse_gaussian_2d(this,sig2)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: sig2

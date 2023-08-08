@@ -98,20 +98,34 @@ def movie_slides(prob,x,y,pot):
                     alpha=0.75)
         fig.savefig('prob-%05i.png' % i)
         ax.cla()
+    return
+        
+# Compute the effective potential of the mean field
+def effective_potential_1d(psi, xv, yv, pot):
+    for x_ in xv:
+        pot_split = pot(x_+yv) + pot(x_-yv)
 
+    # Now sum \int (V(x+r) + V(x-r)) \psi^2 dr
+    # Figure out how to normalize out the psi(x) part
+    return
+        
 if __name__=="__main__":
     xv = np.loadtxt('xgrid.dat')
     yv = np.loadtxt('ygrid.dat')
 
     dx = xv[1]-xv[0]
     
-    n = xv.size
+    nx, ny = xv.size, yv.size
+    n = nx  # Hack for now
     psi = np.fromfile('fields.bin').reshape((-1,2,n,n))
     psi = psi[:,0] + 1j*psi[:,1]
     
     pot = np.fromfile('trap.bin').reshape((n,n))
-    prob = np.abs(psi)**2
-
+    prob = np.abs(psi)**2*dx**2
+    # This ordering is for the Fortran mapped to C ordering
+    px = np.sum(prob,axis=-2)
+    py = np.sum(prob,axis=-1)
+    
     #plt.contourf(xv,yv,prob[100]-prob[0])
     #plt.colorbar()
 
