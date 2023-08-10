@@ -129,12 +129,12 @@ contains
              xm = this%yGrid(j) / fld_norm
           endif
              
-          this%v_trap(:,j) = 1. - cos(xp) + 1. - cos(xm)
+          this%v_trap(:,j) = 1. - cos(xp) + 1. - cos(xm) - 2. ! centering
        enddo
        this%v_trap = fld_norm**2 * this%v_trap
 
        call add_trap_gradient_energy(this, 2./sqrt(k2), diag)
-       call normalize_trap(this, 32._dl)
+       call normalize_trap(this, 128._dl)
        
     case(5)  ! Drummond potential with gradient
        do j=1,this%ny

@@ -92,7 +92,7 @@ def movie_slides(prob,x,y,pot):
     fig, ax = plt.subplots()
     for i,p in enumerate(prob):
         ax.contour(x,y,pot,cmap='Reds')
-        ax.contourf(x,y,p,levels=np.linspace(0.,0.15,51),
+        ax.contourf(x,y,p/np.max(p),levels=np.linspace(0.,1.,51),
                     extend='max',
                     cmap='binary',
                     alpha=0.75)

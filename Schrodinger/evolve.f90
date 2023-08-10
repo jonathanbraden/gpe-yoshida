@@ -16,30 +16,32 @@ program Evolve_GPE
   integer :: i
   real(dl) :: trap_param, fld_norm, grad_ratio, m2_
   real(dl) :: m2_mean
+  real(dl) :: mean_fld
+  integer :: n_min
   
-
   ! k_eff = 2/pi k_nyq = 2/dx => w2_eff = m2 + 4./dx**2
   
   nf = 1
   trap_param = 2.
-  fld_norm = 1. ! try various values to set hbar
+  fld_norm = 8. ! try various values to set hbar
   !call create_lattice_rectangle(mySim, (/128,128/), (/fld_norm*4.*twopi,fld_norm*4.*twopi/), nf)
   !call create_lattice_rectangle(mySim, (/128,128/), (/32._dl,32._dl/), nf)
 
-  call create_lattice_rectangle(mySim, (/128,128/), (/2.**0.5*fld_norm*3.*twopi,2.**0.5*fld_norm*3.*twopi/), nf)
+  n_min = 1
+  call create_lattice_rectangle(mySim, (/256,256/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf)
 
   ! TBD: Figure out all annoying normalizations ...
-  ! Coherent state in harmonic trap
-  ! For harmonic trap aligned on axes
-  grad_ratio = 0.125*(0.1*twopi)**2
-  ! mu = phi0^2 / 16.
-  !call initialize_trap(mySim,(/1._dl/), 2, fld_norm, grad_ratio)
+  ! Coherent state in sine-Gordon
+  mean_fld = 0.125*twopi
+  grad_ratio = mean_fld**2 / 16.
+  !grad_ratio = mean_fld**2 / 2.
+  ! mu = phi_0^2 / 16 is max in small amp limit
   call initialize_trap(mySim,(/1._dl/), 3, fld_norm, grad_ratio)
-  m2_mean = cos(0.1*twopi)
+  m2_mean = cos(mean_fld/fld_norm)  ! Check norm, add fld_norm
   ! k^2 < phi0^2 / 4 -> k^2_eff
   ! dx = 2 / sqrt(grad_ratio) -> grad_ratio = 4 / dx**2 = (2/pi * k_nyq)**2
-  m2_ = 1.+grad_ratio 
-  call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), 0.1*twopi )
+  m2_ = m2_mean + grad_ratio 
+  call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), mean_fld*2.**0.5*fld_norm )
   !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
   !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
   mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
@@ -66,7 +68,7 @@ program Evolve_GPE
   call write_lattice_data(mySim, 50)
 
   dt = 1./512.
-  do i=1,1000
+  do i=1,500
      call step_lattice(mySim,dt,128)
      call write_lattice_data(mySim,50)
      print*,"step ",i," time = ",mySim%time
