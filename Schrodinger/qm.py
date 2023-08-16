@@ -1,6 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scipy.linalg import circulant
+
+# This doesn't have dx norm part in it yet
+# Improve speed
+def trace_density_matrix(psi):
+    nx, ny = psi.shape  # Check if I want first or last index
+
+    rho = np.zeros((nx,nx), dtype=np.complex128)
+    for i in range(nx):
+        for j in range(nx):
+            rho[i,j] = np.sum( np.conj(psi[i])*psi[j] )
+    
+    return rho
+
+def compute_wigner_function(rho):
+    # Start by rolling the density matrix
+    # Then I can take a Fourier transform
+    # Then I'm done
+
+    n = rho.shape[0]
+    shift = n//2
+    for i in range(n):
+        pass  # Put in shifting of density matrix
+    
+    return wigner
+
 def laplacian_spectral_1d(f, dx):
     n = f.size
     norm = (2.*np.pi / dx)

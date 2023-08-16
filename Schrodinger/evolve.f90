@@ -15,64 +15,15 @@ program Evolve_GPE
   real(dl) :: dt
   integer :: i
   real(dl) :: trap_param, fld_norm, grad_ratio, m2_
-  real(dl) :: m2_mean
-  real(dl) :: mean_fld
-  integer :: n_min
   
   ! k_eff = 2/pi k_nyq = 2/dx => w2_eff = m2 + 4./dx**2
   
   nf = 1
-  trap_param = 2.
-  fld_norm = 8. ! try various values to set hbar
-  !call create_lattice_rectangle(mySim, (/128,128/), (/fld_norm*4.*twopi,fld_norm*4.*twopi/), nf)
-  !call create_lattice_rectangle(mySim, (/128,128/), (/32._dl,32._dl/), nf)
+  fld_norm = 1.
+  nLat = 128
 
-  n_min = 1
-  call create_lattice_rectangle(mySim, (/256,256/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf)
-
-  ! TBD: Figure out all annoying normalizations ...
-  ! Coherent state in sine-Gordon
-  mean_fld = 0.125*twopi
-  grad_ratio = mean_fld**2 / 16.
-  !grad_ratio = mean_fld**2 / 2.
-  ! mu = phi_0^2 / 16 is max in small amp limit
-  call initialize_trap(mySim,(/1._dl/), 3, fld_norm, grad_ratio)
-  m2_mean = cos(mean_fld/fld_norm)  ! Check norm, add fld_norm
-  ! k^2 < phi0^2 / 4 -> k^2_eff
-  ! dx = 2 / sqrt(grad_ratio) -> grad_ratio = 4 / dx**2 = (2/pi * k_nyq)**2
-  m2_ = m2_mean + grad_ratio 
-  call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), mean_fld*2.**0.5*fld_norm )
-  !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
-  !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
-  mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
-  
-  ! For BEC potential
-  trap_param = 1.4
-  grad_ratio = 0.6_dl !0.5 ! / 10. for mid
-  m2_ = 1.-1._dl/trap_param**2
-  !call initialize_trap(mySim,(/trap_param/),6, fld_norm, grad_ratio)
-  !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
-
-  !call initialize_trap(mySim,(/trap_param/),7, fld_norm, grad_ratio)
-  !call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
-
-  !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
-  
-  !trap_ratio = 100.
-  !grad_ratio = 0.
-  !m2_ = trap_ratio**2-1._dl
-  !call initialize_trap(mySim,(/trap_ratio/),5, fld_norm, grad_ratio)
-  !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
-  !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
-  
-  call write_lattice_data(mySim, 50)
-
-  dt = 1./512.
-  do i=1,500
-     call step_lattice(mySim,dt,128)
-     call write_lattice_data(mySim,50)
-     print*,"step ",i," time = ",mySim%time
-  enddo
+  !call evolve_vacuum_decay(nLat, 4, fld_norm)
+  call evolve_preheating(256, 2, 2., 0.125*twopi)
   
 contains
 
@@ -111,9 +62,92 @@ contains
     enddo
   end subroutine test_sho
 
-  subroutine test_coherent_state()
-  end subroutine test_coherent_state
+  subroutine evolve_vacuum_decay(nLat, n_min, fld_norm)
+    integer, intent(in) :: nLat, n_min
+    real(dl), intent(in) :: fld_norm
 
+    type(Lattice) :: mySim
+    integer :: nf
+    real(dl) :: trap_param, grad_ratio ! Move to inputs
+    real(dl) :: m2_
+    integer :: u
+    real(dl) :: dt
+    integer :: i
+    
+    ! Add n_min in here
+    nf = 1
+    call create_lattice_rectangle(mySim, (/nLat,nLat/),  &
+         (/2.**0.5*fld_norm*4.*twopi,2.**0.5*fld_norm*4.*twopi/), nf)
+
+    trap_param = 1.4
+    grad_ratio = 0.2_dl !0.5 ! / 10. for mid
+    m2_ = 1.-1._dl/trap_param**2
+    !call initialize_trap(mySim,(/trap_param/),6, fld_norm, grad_ratio)
+    !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
+
+    call initialize_trap(mySim,(/trap_param/),7, fld_norm, grad_ratio)
+    call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
+
+    mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
+
+    u = 50
+    call write_lattice_data(mySim, u)
+
+    dt = 1./512.
+    do i=1,400
+       call step_lattice(mySim,dt,32)
+       call write_lattice_data(mySim,u)
+       print*,"step ",i," time = ",mySim%time
+    enddo
+ 
+  end subroutine evolve_vacuum_decay
+  
+  ! Evolve coherent state in sine-Gordon potential
+  !
+  ! Defaults until I work out better ones
+  !  - nLat = 256
+  !  - mean_fld = 0.125*twopi
+  subroutine evolve_preheating(nLat, n_min, fld_norm, mean_fld)
+    integer, intent(in) :: nLat, n_min
+    real(dl), intent(in) :: fld_norm, mean_fld
+
+    type(Lattice) :: mySim
+    integer :: nf
+    real(dl) :: grad_ratio  ! Make this an input parameter
+    real(dl) :: m2_mean, m2_
+
+    real(dl) :: dt
+    integer :: i
+    integer :: u
+    
+    nf = 1
+    call create_lattice_rectangle(mySim, (/nLat,nLat/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf)
+
+    grad_ratio = mean_fld**2 / 16.
+    !grad_ratio = mean_fld**2 / 2.
+    
+    call initialize_trap(mySim,(/1._dl/), 3, fld_norm, grad_ratio)
+    m2_mean = cos(mean_fld/fld_norm) 
+    m2_ = m2_mean + grad_ratio
+    
+    call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), mean_fld*2.**0.5*fld_norm )
+    !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
+    !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
+
+    mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
+
+    u = 50  ! Fix this to be automated
+    call write_lattice_data(mySim, u)
+
+    dt = 1./512.
+    do i=1,500
+       call step_lattice(mySim,dt,128)
+       call write_lattice_data(mySim,u)
+       print*,"step ",i," time = ",mySim%time
+    enddo
+  end subroutine evolve_preheating
+
+  
   ! Simulate tunneling in BEC potential
   subroutine evolve_bec_tunneling(lVal, keff, fld_norm, nLat )
     real(dl), intent(in) :: lVal, keff, fld_norm
