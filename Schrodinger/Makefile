@@ -54,9 +54,8 @@ FLIBS+= -lm
 
 OBJS = constants.o utils.o fftw_mod_wtype.o fast_cheby_2d.o lattice.o equations.o yoshida.o
 
-gp: %: $(OBJS) evolve.o
+schrodinger: %: $(OBJS) evolve.o
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -o schrodinger evolve.o $(OBJS) $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
-
 
 %.o: %.f90
 	$(FC) $(FFLAGS) $(FOPT) $(FFTW_INC) $(MACROS) -c $< -o $@ $(FFTW_LIB) $(FLIBS) $(THREAD_LIB)
@@ -66,4 +65,4 @@ gp: %: $(OBJS) evolve.o
 clean:
 	rm -f *.o
 	rm -f *.mod
-	rm -f gp-2d solve-bg
+	rm -f schrodinger
