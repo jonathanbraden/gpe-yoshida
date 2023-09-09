@@ -15,7 +15,7 @@ module Equations
   
   implicit none
 
-  integer, parameter :: n_terms = 2
+  integer, parameter :: n_terms = 2 ! Make this better
   
 contains
 
@@ -76,124 +76,8 @@ contains
     
     call output_trap(this)
   end subroutine initialize_trap
-  
-  
-  ! Improvements for this subroutine
-  ! Write the gradient energy as one term
-  ! Write the potential as a different term
-  ! Combine them.  This makes it easier to write the code
-  !
-  ! Add option to 
-  subroutine initialize_trap_old(this, params, type, fld_norm, k2)
-    type(Lattice), intent(inout) :: this
-    real(dl), dimension(:), intent(in) :: params
-    integer, intent(in) :: type
-    real(dl), intent(in) :: fld_norm, k2
-
-    integer :: i, j
-    real(dl), dimension(1:this%nx) :: xp, xm
-    logical :: diag ! Put this as an input flag
-    
-    diag = .true.  ! Turn this into a variable
-    
-    if (allocated(this%v_trap)) deallocate(this%v_trap)
-    allocate(this%v_trap(1:this%nx,1:this%ny))
-    this%v_trap = 0._dl
-
-    ! Modularise this to take the potential as a function pointer
-    
-    select case (type)
-    case (1)
-       this%v_trap = 0._dl
-
-    case(2) ! Harmonic trap with gradient
-       do j=1,this%ny
-          if (diag) then
-             xp = sqrt(0.5)*( this%yGrid(j) + this%xGrid(:) ) / fld_norm
-             xm = sqrt(0.5)*( this%yGrid(j) - this%xGrid(:) ) / fld_norm
-          else
-             xp = this%xGrid(:) / fld_norm
-             xm = this%yGrid(j) / fld_norm
-          endif
-          
-          this%v_trap(:,j) = 0.5_dl*( xp**2 + xm**2 )
-       enddo
-       this%v_trap = fld_norm**2 * this%v_trap
-       
-       call add_trap_gradient_energy(this, 2._dl/sqrt(k2), diag)
-       call normalize_trap(this, 32._dl)
-
-    case(3) ! Check normalization in here
-       do j=1, this%ny
-          if (diag) then
-             xp = sqrt(0.5)*( this%yGrid(j) + this%xGrid(:) ) / fld_norm
-             xm = sqrt(0.5)*( this%yGrid(j) - this%xGrid(:) ) / fld_norm
-          else
-             xp = this%xGrid(:) / fld_norm
-             xm = this%yGrid(j) / fld_norm
-          endif
-             
-          this%v_trap(:,j) = 1. - cos(xp) + 1. - cos(xm) - 2. ! centering
-       enddo
-       this%v_trap = fld_norm**2 * this%v_trap
-
-       call add_trap_gradient_energy(this, 2./sqrt(k2), diag)
-       call normalize_trap(this, 128._dl)
-       
-    case(5)  ! Drummond potential with gradient
-       do j=1,this%ny
-          this%v_trap(:,j) = cos(this%yGrid(j)/fld_norm) + 0.5_dl*params(1)**2*sin(this%yGrid(j)/fld_norm)**2 - 1._dl  &
-               + cos(this%xGrid(:)/fld_norm) + 0.5_dl*params(1)**2*sin(this%xGrid(:)/fld_norm)**2 - 1._dl
-       enddo
-       this%v_trap = fld_norm**2 * this%v_trap
-       call add_trap_gradient_energy( this, 2._dl/sqrt(k2), .false. ) 
-       call normalize_trap(this, 32._dl)
-
-    case(6)  ! Drummond with different norm convention (Further fix)
-       do j=1, this%ny
-          this%v_trap(:,j) = 0.5_dl*sin(this%yGrid(j)/fld_norm)**2 + (cos(this%yGrid(j)/fld_norm)-1._dl)/params(1)**2 &
-                  + 0.5_dl*sin(this%xGrid(:)/fld_norm)**2 + (cos(this%xGrid(:)/fld_norm)-1._dl)/params(1)**2
-       enddo
-       this%v_trap(:,j) = fld_norm**2*this%v_trap(:,j)
-
-       call add_trap_gradient_energy(this, 2./sqrt(k2), .false.)
-       call normalize_trap(this, 32._dl)
-       
-    case(7)   ! Drummond in diagonal coordinates
-       do j=1, this%ny
-          xp = sqrt(0.5)*( this%yGrid(j) + this%xGrid(:) ) / fld_norm
-          xm = sqrt(0.5)*( this%yGrid(j) - this%xGrid(:) ) / fld_norm
-          
-          this%v_trap(:,j) = 0.5_dl*sin(xp(:))**2 + (cos(xp(:))-1._dl)/params(1)**2  &
-                  + 0.5_dl*sin(xm(:))**2 + (cos(xm(:))-1._dl)/params(1)**2
-       enddo
-       this%v_trap = fld_norm**2 * this%v_trap ! I think this is in the wrong place ... (and should go after I add the gradient energy, or maybe not since it's quadratic ...)
-       
-       call add_trap_gradient_energy(this, 2./sqrt(k2), .true.)
-       call normalize_trap(this, 32._dl)
-
-    case(8) ! Double-well in diagonal coordinates (fix normalization)
-       do j=1, this%ny
-          xp = sqrt(0.5)*( this%yGrid(j) + this%xGrid(:) )
-          xm = sqrt(0.5)*( this%yGrid(j) - this%xGrid(:) )
-
-          this%v_trap(:,j) = 0.25*(xp**2/fld_norm**2-1._dl)**2 + 0.25*(xm**2/fld_norm**2-1._dl)**2
-       enddo
-       this%v_trap = fld_norm**2 * this%v_trap
-       
-       call add_trap_gradient_energy(this, 2./sqrt(k2), .true.)
-       call normalize_trap(this, 32._dl)
-       
-    case default
-       this%v_trap = 0._dl
-    end select
-    
-    call output_trap(this)
-  end subroutine initialize_trap_old
-  
+   
   ! Fix up normalisation here.
-  !
-  ! Add choice of convention for axis in phi_1, phi_2 or phi_+ and phi_-
   subroutine add_trap_gradient_energy(this, dx, diag)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dx
@@ -241,7 +125,7 @@ contains
     type(Lattice), intent(in) :: this
     integer :: i,u
 
-    open(unit=newunit(u),file='trap.bin',access='stream')
+    open(unit=newunit(u),file='trap.bin',access='stream',status='replace')
     write(u) this%v_trap
     close(u)
     

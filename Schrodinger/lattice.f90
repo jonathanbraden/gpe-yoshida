@@ -147,7 +147,7 @@ contains
     logical :: o
 
     inquire(opened=o,unit=fNum)
-    if (.not.o) open(unit=fNum,file='fields.bin',access='stream')
+    if (.not.o) open(unit=fNum,file='fields.bin',access='stream',status='replace')
     write(fNum) this%psi(XIND,:,:)
     
   end subroutine write_lattice_data
