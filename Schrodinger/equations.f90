@@ -25,7 +25,7 @@ contains
   ! Combine them.  This makes it easier to write the code
   !
   ! Add option to 
-  subroutine initialize_trap(this, params, pot, fld_norm, k2, diag_, cut)
+  subroutine initialize_trap(this, params, pot, fld_norm, k2, diag_, cut_)
 
     abstract interface
        function pot_func(x,par) result(pot)
@@ -47,18 +47,15 @@ contains
     logical :: diag
     integer :: i, j
     real(dl), dimension(1:this%nx) :: xp, xm
-    logical :: diag
-    real(dl) :: cut_
     real(dl), dimension(1) :: dummy
 
-    diag = .true.  ! Turn this into a variable to pass in
     diag=.true.; if (present(diag_)) diag=diag_
     cut = 32._dl; if (present(cut_)) cut=cut_
-    
+
     if (allocated(this%v_trap)) deallocate(this%v_trap)
     allocate(this%v_trap(1:this%nx,1:this%ny))
     this%v_trap = 0._dl
-
+    
     do j=1,this%ny
        if (diag) then
           xp = sqrt(0.5)*( this%yGrid(j) + this%xGrid(:) ) / fld_norm
@@ -73,9 +70,9 @@ contains
        enddo
     enddo
     this%v_trap = fld_norm**2*this%v_trap
-    
+
     call add_trap_gradient_energy(this, 2._dl/sqrt(k2), diag)
-    call normalize_trap(this, cut_)  
+    call normalize_trap(this, cut)  
     
     call output_trap(this)
   end subroutine initialize_trap
