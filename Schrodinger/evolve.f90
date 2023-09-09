@@ -20,15 +20,16 @@ program Evolve_GPE
   
   nf = 1
   fld_norm = 1.
-  nLat = 128
+  nLat = 256
 
+  fld_norm = 2.**0.5
   !call evolve_vacuum_decay(nLat, 4, fld_norm)
   call evolve_preheating(256, 2, 2., 0.125*twopi)
   
 contains
 
-  subroutine test_sho(n, lSize, keff, diag)
-    integer, intent(in) :: n
+  subroutine test_sho(nLat, lSize, keff, diag)
+    integer, intent(in) :: nLat
     real(dl), intent(in) :: lSize
     real(dl), intent(in) :: keff
     ! Not Yet Implemented
@@ -43,11 +44,11 @@ contains
     integer :: i
     
     nf = 1
-    call create_lattice_rectangle(mySim, (/n,n/), (/lSize,lSize/), nf)
+    call create_lattice_rectangle(mySim, (/nLat,nLat/), (/lSize,lSize/), nf)
 
     grad_ratio = 2.
     energy = 0.5_dl*(1._dl + sqrt(1.+grad_ratio))
-    call initialize_trap(mySim,(/grad_ratio/),2,1._dl,grad_ratio)
+    call initialize_trap_old(mySim,(/grad_ratio/), 2, 1._dl,grad_ratio)
     mySim%v_trap = mySim%v_trap - energy
     
     call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(1.+grad_ratio)/) )
@@ -79,13 +80,14 @@ contains
     call create_lattice_rectangle(mySim, (/nLat,nLat/),  &
          (/2.**0.5*fld_norm*4.*twopi,2.**0.5*fld_norm*4.*twopi/), nf)
 
-    trap_param = 1.4
-    grad_ratio = 0.2_dl !0.5 ! / 10. for mid
+    trap_param = 1.4  ! Make this huge for quadratic ...
+    grad_ratio = 4.*0.35 !0.2_dl !0.5 ! / 10. for mid
     m2_ = 1.-1._dl/trap_param**2
     !call initialize_trap(mySim,(/trap_param/),6, fld_norm, grad_ratio)
     !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
-    call initialize_trap(mySim,(/trap_param/),7, fld_norm, grad_ratio)
+    ! Hmm, are these frequencies correct?  Why isn't there a 4?
+    call initialize_trap_old(mySim,(/trap_param/),6, fld_norm, grad_ratio)
     call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
     mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
@@ -93,9 +95,9 @@ contains
     u = 50
     call write_lattice_data(mySim, u)
 
-    dt = 1./512.
-    do i=1,400
-       call step_lattice(mySim,dt,32)
+    dt = twopi / 1024. / 2.
+    do i=1, 16*10
+       call step_lattice(mySim,dt,64)
        call write_lattice_data(mySim,u)
        print*,"step ",i," time = ",mySim%time
     enddo
@@ -121,15 +123,16 @@ contains
     integer :: u
     
     nf = 1
-    call create_lattice_rectangle(mySim, (/nLat,nLat/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf)
+    ! This normalization assumes some diagonalization
+    call create_lattice_rectangle(mySim, (/nLat,nLat/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf) 
 
     grad_ratio = mean_fld**2 / 16.
     !grad_ratio = mean_fld**2 / 2.
     
-    call initialize_trap(mySim,(/1._dl/), 3, fld_norm, grad_ratio)
+    call initialize_trap(mySim,(/1._dl/), pot_sine_gordon, fld_norm, grad_ratio)
     m2_mean = cos(mean_fld/fld_norm) 
     m2_ = m2_mean + grad_ratio
-    
+
     call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), mean_fld*2.**0.5*fld_norm )
     !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
     !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
@@ -140,7 +143,7 @@ contains
     call write_lattice_data(mySim, u)
 
     dt = 1./512.
-    do i=1,500
+    do i=1,1
        call step_lattice(mySim,dt,128)
        call write_lattice_data(mySim,u)
        print*,"step ",i," time = ",mySim%time
@@ -161,7 +164,7 @@ contains
     ! Fix this to use keff
     grad_ratio = 0.2_dl !0.5 ! / 10. for mid
     m2_ = 1.-1._dl/lVal**2
-    call initialize_trap(mySim,(/lVal, grad_ratio/), 6, fld_norm, grad_ratio)
+    call initialize_trap_old(mySim,(/lVal, grad_ratio/), 6, fld_norm, grad_ratio)
     mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
     
     call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
