@@ -1,41 +1,46 @@
 #include "macros.h"
-
-! Optimization choices
 !#define LOOP T
+!#define DAMPING T
 
 module Equations
   use constants, only : dl, twopi
   use utils, only : newunit
 #if defined(PERIODIC)
   use fftw3
-#elif defined(INFINITE)
+#else
   use Fast_Cheby_2D
 #endif
   use Simulation
   
   implicit none
 
-  integer, parameter :: n_terms = 2 ! Make this better
-  
+  integer, parameter :: n_terms = 2 ! Make this better for absorbing b.c.s
+
+  abstract interface
+     function pot_func(x,par) result(pot)
+       import :: dl
+       real(dl), intent(in) :: x
+       real(dl), dimension(:), intent(in) :: par
+       real(dl) :: pot
+     end function pot_func
+  end interface
+
 contains
 
-  ! Improvements for this subroutine
-  ! Write the gradient energy as one term
-  ! Write the potential as a different term
-  ! Combine them.  This makes it easier to write the code
-  !
-  ! Add option to 
-  subroutine initialize_trap(this, params, pot, fld_norm, k2, diag_, cut_)
+#if defined(DAMPING)
+  subroutine initialize_pml(this, loc, pow)
+    type(Lattice), intent(inout) :: this
+    real(dl), dimension(1:2), intent(in) :: loc
+    integer, intent(in) :: pow
 
-    abstract interface
-       function pot_func(x,par) result(pot)
-         import :: dl
-         real(dl), intent(in) :: x
-         real(dl), dimension(:), intent(in) :: par
-         real(dl) :: pot
-       end function pot_func
-    end interface
+    ! Write this subroutine
+    print*,"Need to implement PML initialisation"
     
+  end subroutine initialize_pml
+#endif
+  
+  ! Should move all of this stuff regarding potentials to a different file
+  subroutine initialize_trap(this, params, pot, fld_norm, k2, diag_, cut_)    
     type(Lattice), intent(inout) :: this
     real(dl), dimension(:), intent(in) :: params
     procedure(pot_func) :: pot
@@ -76,7 +81,7 @@ contains
     
     call output_trap(this)
   end subroutine initialize_trap
-   
+
   ! Fix up normalisation here.
   subroutine add_trap_gradient_energy(this, dx, diag)
     type(Lattice), intent(inout) :: this
@@ -154,7 +159,6 @@ contains
     end select
   end subroutine split_equations
 
-  
   subroutine split_equations_schrodinger(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
@@ -181,8 +185,9 @@ contains
     !case (3)
     !   call evolve_potential_damp(this, dt)
     !case (4)
-    !   call evolve
-       
+    !   call evolve_gradient(this, dt)
+    !case (5)
+    !   call evolve_(this, dt)
     end select
   end subroutine split_equations_schrodinger_pml
   
@@ -199,7 +204,7 @@ contains
        this%tPair%realSpace(XIND) = this%psi(XIND,2,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
-#elif defined(INFINITE)
+#else !defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
 
@@ -230,7 +235,7 @@ contains
        this%tPair%realSpace(XIND) = this%psi(XIND,1,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
-#elif defined(INFINITE)
+#else ! defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
 
@@ -291,7 +296,7 @@ contains
        this%tPair%realSpace(XIND) = this%psi(XIND,1,l)
 #if defined(PERIODIC)
        call laplacian_2d_wtype(this%tPair, this%dk)
-#elif defined(INFINITE)
+#else ! defined(INFINITE)
        call laplacian_cheby_2d_chain_mapped(this%tPair)
 #endif
 
@@ -302,6 +307,8 @@ contains
           do i=1,this%nx
              this%psi(i,j,1,l) = this%psi(i,j,1,l) &
                   + ( 0.5_dl*this%tPair%realSpace(i,j) - this%v_trap(i,j)*this%psi(i,j,2,l) ) *dt
+          enddo
+       enddo
 !$OMP END PARALLEL DO       
 #else
        this%psi(XIND,2,l) = this%psi(XIND,2,l) &
@@ -310,6 +317,78 @@ contains
     enddo
   end subroutine evolve_gradient_trap_imag
 
+#ifdef DAMPING
+  subroutine evolve_auxilliary(this, dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i,j
+    integer :: grad_ind, int_ind
+    
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt) PRIVATE(i,j)
+    do j=1,this%ny
+       do i=1,this%nx
+          this%psi(i,j,:,grad_ind) = this%psi(i,j
+       enddo
+    enddo
+!$OMP END PARALLEL DO
+#else
+
+#endif
+  end subroutine evolve_auxilliary
+  
+! Add the pieces needed for absorbing b.c.s
+  subroutine evolve_potential_damp(this, dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i,j
+    integer :: grad_ind, fld_ind ! Move to lattice def
+    
+! Debug this loop
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt,l) PRIVATE(i,j)
+    do j=1,this%ny
+       do i=1,this%nx
+          this%psi(i,j,:,fld_ind) = this%psi(i,j,:,fld_ind)*exp(-dt*this%pml(i))
+          this%psi(i,j,:,fld_ind) = this%psi(i,j,:,grad_ind)*exp(-dt*this%pml(i))
+       enddo
+    enddo
+!$OMP END PARALLEL DO       
+#else
+    do j=1,this%ny
+       this%psi(:,j,1,fld_ind) = this%psi(:,j,1,fld_ind)*exp(-dt*this%pml(:))
+       this%psi(:,j,2,fld_ind) = this%psi(:,j,2,fld_ind)*exp(-dt*this%pml(:))
+
+       this%psi(:,j,1,grad_ind) = this%psi(:,j,1,grad_ind)*exp(-dt*this%pml(:))
+       this%psi(:,j,2,grad_ind) = this%psi(:,j,2,grad_ind)*exp(-dt*this%pml(:))
+    enddo
+#endif
+  end subroutine evolve_potential_damp
+
+  subroutine evolve_gradient_mode(this, dt)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dt
+
+    integer :: i,j
+    integer :: grad_ind
+
+    grad_ind = 2 ! Put in lattice def
+#ifdef LOOP
+!$OMP PARALLEL DO FIRSTPRIVATE(dt, l) PRIVATE(i,j)
+    do j=1,this%ny
+       do i=1,this%nx
+          this%psi(i,j,1,grad_ind) = this%psi(i,j,1)
+       enddo
+    enddo
+!$OMP END PARALLEL DO
+#else
+
+#endif
+  end subroutine evolve_gradient_mode
+#endif
+  
   real(dl) function pot_quad(x,params) result(pot)
     real(dl), intent(in) :: x
     real(dl), dimension(:), intent(in) :: params

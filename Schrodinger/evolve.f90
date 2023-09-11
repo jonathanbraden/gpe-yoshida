@@ -18,11 +18,9 @@ program Evolve_GPE
   
   ! k_eff = 2/pi k_nyq = 2/dx => w2_eff = m2 + 4./dx**2
   
-  nf = 1
-  fld_norm = 1.
-  nLat = 256
+  nf = 1 ! Will need to adjust once I add absorbing b.c.s
 
-  fld_norm = 2.**0.5
+  nLat=256; fld_norm = 2.**0.5
   !call evolve_vacuum_decay(nLat, 4, fld_norm)
   call evolve_preheating(256, 2, 2., 0.125*twopi)
   
@@ -48,7 +46,7 @@ contains
 
     grad_ratio = 2.
     energy = 0.5_dl*(1._dl + sqrt(1.+grad_ratio))
-    call initialize_trap_old(mySim,(/grad_ratio/), 2, 1._dl,grad_ratio)
+    call initialize_trap(mySim,(/grad_ratio/), pot_quad, 1._dl,grad_ratio)
     mySim%v_trap = mySim%v_trap - energy
     
     call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(1.+grad_ratio)/) )
@@ -87,7 +85,7 @@ contains
     !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
     ! Hmm, are these frequencies correct?  Why isn't there a 4?
-    call initialize_trap_old(mySim,(/trap_param/),6, fld_norm, grad_ratio)
+    call initialize_trap_old(mySim,(/trap_param/), pot_bec_norm, fld_norm, grad_ratio)
     call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
     mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
@@ -116,41 +114,45 @@ contains
     type(Lattice) :: mySim
     integer :: nf
     real(dl) :: grad_ratio  ! Make this an input parameter
-    real(dl) :: m2_mean, m2_
+    real(dl) :: m2_mean, m2_k
 
     real(dl) :: dt
     integer :: i
     integer :: u
     
+    ! Add options vs diagonal or not in here
+    
     nf = 1
+
     ! This normalization assumes some diagonalization
     call create_lattice_rectangle(mySim, (/nLat,nLat/), (/2.**0.5*fld_norm*n_min*twopi,2.**0.5*fld_norm*n_min*twopi/), nf) 
 
-    grad_ratio = mean_fld**2 / 16.
-    !grad_ratio = mean_fld**2 / 2.
+    !grad_ratio = mean_fld**2 / 16.
+    grad_ratio = mean_fld**2 / 2.
     
-    call initialize_trap(mySim,(/1._dl/), pot_sine_gordon, fld_norm, grad_ratio)
+    call initialize_trap(mySim,(/1._dl/), pot_sine_gordon, &
+                         fld_norm, grad_ratio, diag_=.true.)
     m2_mean = cos(mean_fld/fld_norm) 
-    m2_ = m2_mean + grad_ratio
+    m2_k = m2_mean + grad_ratio
 
-    call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_)/), mean_fld*2.**0.5*fld_norm )
+    call imprint_coherent_state( mySim, (/1./sqrt(m2_mean),1./sqrt(m2_k)/), mean_fld*2.**0.5*fld_norm )
     !call imprint_gaussian_2d( mySim, (/1., 1./sqrt(m2_)/) )
     !call imprint_gaussian_2d_diag( mySim, (/1., 1./sqrt(m2_)/) )
 
-    mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
+    ! Missing field norm here
+    !mySim%v_trap = mySim%v_trap - 0.5_dl*(1.+sqrt(m2_))
 
     u = 50  ! Fix this to be automated
     call write_lattice_data(mySim, u)
 
     dt = 1./512.
-    do i=1,1
+    do i=1,500
        call step_lattice(mySim,dt,128)
        call write_lattice_data(mySim,u)
        print*,"step ",i," time = ",mySim%time
     enddo
   end subroutine evolve_preheating
 
-  
   ! Simulate tunneling in BEC potential
   subroutine evolve_bec_tunneling(lVal, keff, fld_norm, nLat )
     real(dl), intent(in) :: lVal, keff, fld_norm
@@ -164,7 +166,7 @@ contains
     ! Fix this to use keff
     grad_ratio = 0.2_dl !0.5 ! / 10. for mid
     m2_ = 1.-1._dl/lVal**2
-    call initialize_trap_old(mySim,(/lVal, grad_ratio/), 6, fld_norm, grad_ratio)
+    call initialize_trap(mySim,(/lVal/), pot_bec_norm, fld_norm, grad_ratio)
     mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+grad_ratio))
     
     call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+grad_ratio)/) )
@@ -224,21 +226,17 @@ contains
   end subroutine imprint_transverse_gaussian_2d
 
   ! Add momentum here
-  subroutine imprint_coherent_state(this,sig2,x)
+  subroutine imprint_coherent_state(this, sig2, x)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(1:2), intent(in) :: sig2
     real(dl), intent(in) :: x
-    integer :: j,l
+    integer :: j
 
     this%psi = 0._dl
     do j = 1,this%ny
-       do l=1,this%nfld
-          this%psi(1:this%nx,j,1,l) = exp( -0.5_dl*((this%xGrid-x)**2/sig2(1)+this%yGrid(j)**2/sig2(2)) ) / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
-       enddo
+       this%psi(1:this%nx,j,1,1) = exp( -0.5_dl*((this%xGrid-x)**2/sig2(1)+this%yGrid(j)**2/sig2(2)) ) / (0.5_dl**2*twopi**2*sig2(1)*sig2(2))**0.25
     enddo
 
-    ! What was this for?  Computing norm or something?
-    this%tPair%realSpace = this%psi(1:this%nx,1:this%ny,1,1)**2 + this%psi(1:this%nx,1:this%ny,2,1)**2 
   end subroutine imprint_coherent_state
   
 end program Evolve_GPE

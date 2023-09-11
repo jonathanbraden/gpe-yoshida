@@ -1,4 +1,5 @@
 #include "macros.h"
+!#define DAMPING T
 
 module Simulation
   use constants, only : dl, twopi
@@ -23,6 +24,9 @@ module Simulation
 #elif defined(INFINITE)
      type(chebyshevPair2D) :: tPair
 #endif
+#if defined(DAMPING)
+     real(dl), dimension(:), allocatable :: pml
+#endif
   end type Lattice
   
 contains
@@ -45,7 +49,10 @@ contains
     allocate( this%psi(1:n,1:n,1:2,1:nf) )
     allocate( this%v_trap(1:this%nx,1:this%ny) )    
     allocate( this%xGrid(1:this%nx), this%yGrid(1:this%ny) )
-
+#if defined(DAMPING)
+    allocate( this%pml(1:this%nx) )
+#endif
+    
 #if defined(PERIODIC)
     this%dx(1:2) = len/dble(n); this%dk(1:2) = twopi/len
     call initialize_transform_2d(this%tPair, (/n,n/) )
@@ -89,6 +96,10 @@ contains
     allocate( this%v_trap(1:this%nx,1:this%ny) )
     allocate( this%xGrid(1:this%nx), this%yGrid(1:this%ny) )
 
+#if defined(DAMPING)
+    allocate( this%pml(1:this%nx) )
+#endif
+    
 #if defined(PERIODIC)
     this%dx(1:2) = len_(1:2)/dble(n(1:2)); this%dk(1:2) = twopi/len_(1:2)
     call initialize_transform_2d(this%tPair, (/ this%nx,this%ny /) )
@@ -123,6 +134,11 @@ contains
     this%nFld = -1
     if (allocated(this%psi)) deallocate(this%psi)
     if (allocated(this%v_trap)) deallocate(this%v_trap)
+
+#if defined(DAMPING)
+    if (allocated(this%pml)) deallocate(this%pml)
+#endif
+    
 #if defined(PERIODIC)
     call destroy_transform_2d(this%tPair)
 #elif defined(INFINITE)
