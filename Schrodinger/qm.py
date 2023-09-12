@@ -99,23 +99,62 @@ class Wavefunction():
             print('Invalid axis')
             return None
 
-    def von_neumann_entropy(self):
+    def von_neumann_entropy(self, axis='x'):
         return
 
-    def shannon_entropy(self, axis='x'):
+    def shannon_entropy(self, axis):
         r"""
         Compute the Shannon entropy for the reduced probability distribution along the indicated axis.
+
+        axis must be one of 'x' or 'y'
         """
         assert axis in ['x','y'], 'Error, axis must be x or y'
 
         if (axis=='x'):
-            entropy = -np.sum(self.px*self.dx*np.log(self.px*self.dx))
+            p = self.px / np.sum(self.px, axis=-1, keepdims=True)
         elif (axis=='y'):
-            entropy = -np.sum(self.py*self.dy*np.log(self.py*self.dy))
+            p = self.py / np.sum(self.py, axis=-1, keepdims=True)
         else:
-            entropy = 0.
-        return entropy
+            return None
+
+        return -np.sum(p*np.log(p),axis=-1)
+
+    # Write this, fix normalizations, etc.
+    # Need to add some checks to avoid dividing by 0
+    # Debug that I've added the mask correctly
+    def kl_to_gaussian(self, axis='x',*, eps_g=1.e-7, eps_p=1.e-7, gauss_ref=False):
+        """
+        Compute KL Divergence from a Gaussian probability with same mean and variance
+        """
+        assert axis in ['x','y'], 'Error, axis must be x or y'
         
+        if axis=='x':
+            x,p = self.xv, self.px/np.sum(self.px,axis=-1,keepdims=True)
+        elif axis=='y':
+            x,p = self.yv, self.py/np.sum(self.py,axis=-1,keepdims=True)
+        else:
+            print(f'Error, axis must be x or y')
+            return None
+
+        mu = np.sum(x*p,axis=-1,keepdims=True)
+        var = np.sum((x-mu)**2*p,axis=-1,keepdims=True)
+        gauss = np.exp(-0.5*(x-mu)**2/var) / np.sqrt(2.*np.pi*var)
+        gauss = gauss / np.sum(gauss,axis=-1,keepdims=True)
+        
+        mask = (np.abs(gauss) > eps_g) & (np.abs(p)>eps_p)
+
+        if gauss_ref:
+            kld = np.sum(gauss*np.log(gauss/p), axis=-1, where=mask)
+        else:
+            kld = np.sum(p*np.log(p/gauss), axis=-1, where=mask)
+        
+        return kld
+
+    # Write this.  Makes minimal sense if the mean is oscillating
+    # so I'll have to "shift the mean" somehow.
+    def kl_from_initial(self):
+        return
+    
     def plot_potential(self, *, ax=None):
         r"""
         Make a contour plot of the 2-particle potential.
@@ -203,14 +242,6 @@ def probability_scalar(psi, dx):
     # Then hit with inverse laplacian (but don't do the k=0 mode)
 
     # Then to get vector back, hit with derivative
-    return
-
-def plot_re_im(psi,dt=0.25):
-    nx,ny = psi.shape[-2:]
-    tv = 0.25*np.arange(psi.shape[0])
-    plt.plot(tv,psi[:,0,nx//2,ny//2])
-    plt.plot(tv,psi[:,1,nx//2,ny//2])
-
     return
 
 def movie_slides(prob,x,y,pot):
