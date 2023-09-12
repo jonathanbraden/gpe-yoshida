@@ -1,81 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Can probably delete this
 from scipy.linalg import circulant
 
-# Have to add correct normalization in here still
-class Wavefunction():
-
-    # Need to upgrade for non-square lattices
-    def __init__(self, wf_file, pot_file, x_file, y_file):
-        self.xv = np.loadtxt(x_file)
-        self.yv = np.loadtxt(y_file)
-        nx, ny = self.xv.size, self.yv.size
-
-        nf = 1
-        self.psi = np.fromfile(wf_file).reshape((-1,2,ny,nx))
-        self.psi = psi[:,0] + 1j*psi[:,1]
-
-        self.pot = np.fromfield(pot_file).reshape((ny,nx))
-        
-        self.px = np.sum(np.abs(self.psi)**2,axis=-2)
-        self.py = np.sum(np.abs(self.psi)**2,axis=-1)
-
-    def density_matrix(self, tInd):
-        return
-
-    def marginal_densities(self, *, axis='x'):
-        if (axis=='y'):
-            return np.sum(np.abs(self.psi)**2, axis=-2)
-        return np.sum(np.abs(self.psi)**2, axis=-1)
-
-    def reduced_density(self, tInd, axis):
-        if (axis=='y'):
-            pass
-        elif (axis=='x'):
-            pass
-        else:
-            print('Invalid axis')
-            return None
-        
-# This doesn't have dx norm part in it yet
-# Improve speed
-# Allow for a choice of which degree of freedom to trace out
-def trace_density_matrix(psi):
-    nx, ny = psi.shape  # Check if I want first or last index
-
-    # Fix this
-    # Oops, tracing out the zero mode
-    rho = np.zeros((nx,nx), dtype=np.complex128)
-    for i in range(nx):
-        for j in range(nx):
-            rho[i,j] = np.sum( np.conj(psi[i])*psi[j] ) # Fix this
-    
-    return rho
-
-def reduced_density_matrix(psi, axis=0):
-    if axis==0:
-        rho_reduced = psi.T@np.conj(psi)
-    else:
-        rho_reduced = psi@np.conj(psi.T)
-
-    return rho_reduced
-
-from scipy.linalg import logm
-def von_neumann_entropy(dens, *, method='eigen'):
-    # Have to make sure density is normalized
-    if (method=='eigen'):
-        ev = np.sort(np.linalg.eigvalsh(dens))[::-1]
-        entropy = -np.sum( ev[:20]*np.log(np.abs(ev[:20]) )) # check this
-    if (method=='matrix'):
-        entropy = -np.trace( dens*logm(dens) )
-    return entropy
-
-# Write code to compute Tr(rho^n) for replica trick
-# Need matrix_pow command
-def matrix_traces(dens, order):
-    return
-
+# Move these derivative codes into a separate file
 def laplacian_spectral_1d(f, dx):
     n = f.size
     norm = (2.*np.pi / dx)
@@ -123,6 +52,127 @@ def grad_spectral(f, dx):
     df_y = np.fft.ifft2(df_y)
 
     return df_x, df_y  # Merge into a single array
+
+
+# Have to add correct normalization in here still
+class Wavefunction():
+
+    # Need to upgrade for non-square lattices
+    def __init__(self, wf_file, pot_file, x_file, y_file):
+        self.xv = np.loadtxt(x_file)
+        self.yv = np.loadtxt(y_file)
+        self.nx, self.ny = self.xv.size, self.yv.size
+
+        self.nf = 1
+        self.psi = np.fromfile(wf_file).reshape((-1,2*self.nf,self.ny,self.nx))
+        self.psi = self.psi[:,0] + 1j*self.psi[:,1]
+
+        self.pot = np.fromfile(pot_file).reshape((self.ny,self.nx))
+
+        self.px = np.sum(np.abs(self.psi)**2,axis=-2)
+        self.py = np.sum(np.abs(self.psi)**2,axis=-1)
+
+        self.dx, self.dy = self.xv[1]-self.xv[0], self.yv[1]-self.yv[0]
+        
+
+    def get_prob(self):
+        return np.abs(self.psi)**2*self.dx*self.dy
+    
+    def get_total_prob(self):
+        return np.sum(np.abs(self.psi)**2*self.dx*self.dy,axis=(-2,-1))
+
+    def marginal_densities(self, *, axis='x'):
+        assert axis in ['x','y'], "Axis must be 'x' or 'y'"
+        if (axis=='y'):
+            return np.sum(np.abs(self.psi)**2, axis=-2)
+        return np.sum(np.abs(self.psi)**2, axis=-1)
+
+    def probability_current(self):
+        return
+    
+    def reduced_density(self, tInd, axis):
+        if (axis=='y'):
+            pass
+        elif (axis=='x'):
+            pass
+        else:
+            print('Invalid axis')
+            return None
+
+    def von_neumann_entropy(self):
+        return
+
+    def shannon_entropy(self, axis='x'):
+        r"""
+        Compute the Shannon entropy for the reduced probability distribution along the indicated axis.
+        """
+        assert axis in ['x','y'], 'Error, axis must be x or y'
+
+        if (axis=='x'):
+            entropy = -np.sum(self.px*self.dx*np.log(self.px*self.dx))
+        elif (axis=='y'):
+            entropy = -np.sum(self.py*self.dy*np.log(self.py*self.dy))
+        else:
+            entropy = 0.
+        return entropy
+        
+    def plot_potential(self, *, ax=None):
+        r"""
+        Make a contour plot of the 2-particle potential.
+        """
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax.contourf(self.xv, self.yv, self.pot)  # Check ordering
+        return ax.get_figure(), ax
+
+def compute_reduced_density_matrix(psi, method='matrix'):
+    if method=='matrix':
+        rho = _reduced_density_matrix(psi)
+    elif method=='loop':
+        rho = trace_density_matrix(psi)
+    else:
+        print(f'Error, invalid method')
+        rho = None
+    return rho
+    
+# This doesn't have dx norm part in it yet
+# Improve speed
+# Allow for a choice of which degree of freedom to trace out
+def trace_density_matrix(psi):
+    ny, nx = psi.shape  # Check if I want first or last index
+
+    # Fix this
+    # Oops, tracing out the zero mode
+    rho = np.zeros((nx,nx), dtype=np.complex128)
+    for i in range(nx):
+        for j in range(nx):
+            rho[i,j] = np.sum( np.conj(psi[i])*psi[j] ) # Fix this
+    
+    return rho
+
+def reduced_density_matrix(psi, axis=0):
+    if axis==0:
+        rho_reduced = psi.T@np.conj(psi)
+    else:
+        rho_reduced = psi@np.conj(psi.T)
+
+    return rho_reduced
+
+from scipy.linalg import logm
+def von_neumann_entropy(dens, *, method='eigen'):
+    # Have to make sure density is normalized
+    if (method=='eigen'):
+        ev = np.sort(np.linalg.eigvalsh(dens))[::-1]
+        entropy = -np.sum( ev[:20]*np.log(np.abs(ev[:20]) )) # check this
+    if (method=='matrix'):
+        entropy = -np.trace( dens*logm(dens) )
+    return entropy
+
+# Write code to compute Tr(rho^n) for replica trick
+# Need matrix_pow command
+def matrix_traces(dens, order):
+    return
     
 # Check the ordering of the directions in here
 # Fix normalization
@@ -185,41 +235,30 @@ def effective_potential_1d(psi, xv, yv, pot):
     return
         
 if __name__=="__main__":
-    xv = np.loadtxt('xgrid.dat')
-    yv = np.loadtxt('ygrid.dat')
-
-    dx = xv[1]-xv[0]
+    wf = Wavefunction('fields.bin', 'trap.bin', 'xgrid.dat', 'ygrid.dat')
     
-    nx, ny = xv.size, yv.size
-    n = nx  # Hack for now
-    psi = np.fromfile('fields.bin').reshape((-1,2,n,n))
-    psi = psi[:,0] + 1j*psi[:,1]
-
-    pot = np.fromfile('trap.bin').reshape((n,n))
-    prob = np.abs(psi)**2*dx**2
+    prob = wf.get_prob()
     # This ordering is for the Fortran mapped to C ordering
     px = np.sum(prob,axis=-2)
     py = np.sum(prob,axis=-1)
 
-    #plt.contourf(xv,yv,pot)
-
-    dprob = probability_divergence(psi, dx)
-    current = probability_current(psi, dx)
+    dprob = probability_divergence(wf.psi, wf.dx)
+    current = probability_current(wf.psi, wf.dx)
 
     # Normalizing to density
-    psi = psi * dx  # squared since two particles
+    psi = wf.psi * np.sqrt(wf.dx*wf.dy)  # squared since two particles
     
-    entropy_mean = []
-    entropy_k = []
-    for p_ in psi:
-        dens = p_.T@np.conj(p_)
-        s = von_neumann_entropy(dens)
-        entropy_mean.append(s)
-        dens = p_@np.conj(p_).T
-        s = von_neumann_entropy(dens)
-        entropy_k.append(s)
+    #entropy_mean = []
+    #entropy_k = []
+    #for p_ in psi:
+    #    dens = p_.T@np.conj(p_)
+    #    s = von_neumann_entropy(dens)
+    #    entropy_mean.append(s)
+    #    dens = p_@np.conj(p_).T
+    #    s = von_neumann_entropy(dens)
+    #    entropy_k.append(s)
 
-    eps = 1.e-5
+    #eps = 1.e-5
     # I think the broadcasting on these is wrong
     #cond_prob_y = np.where(px>eps, prob/px, 0.) # Check broadcasting
     #cond_prob_x = np.where(py>eps, prob/py, 0.) # Check broadcasting
