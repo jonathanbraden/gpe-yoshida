@@ -71,7 +71,7 @@ contains
        endif
 
        do i=1,this%nx
-          this%v_trap(i,j) = pot(xm(i),dummy) + pot(xp(i),dummy)
+          this%v_trap(i,j) = pot(xm(i),params) + pot(xp(i),params)
        enddo
     enddo
     this%v_trap = fld_norm**2*this%v_trap
@@ -82,7 +82,7 @@ contains
     call output_trap(this)
   end subroutine initialize_trap
 
-  ! Fix up normalisation here.
+  ! Check the normalizations in here and fix them
   subroutine add_trap_gradient_energy(this, dx, diag)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dx
@@ -405,7 +405,8 @@ contains
     real(dl), dimension(:), intent(in) :: params
 
     real(dl) :: lVal
-
+    
+    lVal = params(1)
     pot = cos(x) + 1._dl + 0.5_dl*lVal**2*sin(x)**2
   end function pot_bec
 
@@ -415,8 +416,20 @@ contains
 
     real(dl) :: lVal
 
+    lVal = params(1)
     pot = 0.5_dl*sin(x)**2 + (cos(x)-1._dl)/lVal**2
   end function pot_bec_norm
+
+  real(dl) function pot_bec_decay(x,params) result(pot)
+    real(dl), intent(in) :: x
+    real(dl), dimension(:), intent(in) :: params
+
+    if (abs(x) <= 0.5*twopi) then
+       pot = 0.5_dl*sin(x)**2 + (cos(x)-1._dl)/params(1)**2
+    else
+       pot = -2._dl/params(1)**2
+    endif
+  end function pot_bec_decay
   
   real(dl) function pot_hertzberg(x,params) result(pot)
     real(dl), intent(in) :: x

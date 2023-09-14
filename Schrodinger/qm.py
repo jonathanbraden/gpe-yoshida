@@ -41,15 +41,17 @@ def laplacian_spectral(f, dx):
 # Fix for non-square shapes
 def grad_spectral(f, dx):
     nx, ny = f.shape[-2:]
-    norm = 2.*np.pi / dx
-    fk = 1j*norm*np.fft.fft2(f)
+    norm_x = 2.*np.pi / dx[0]
+    norm_y = 2.*np.pi / dx[1]
+    
+    fk = np.fft.fft2(f)
 
     # Check these orderings
-    df_x = fk*np.fft.fftfreq(nx)[:,np.newaxis]
-    df_y = fk*np.fft.fftfreq(ny)[np.newaxis,:]
+    df_x = 1j*norm_x*fk*np.fft.fftfreq(nx)[:,np.newaxis]
+    df_y = 1j*norm_y*fk*np.fft.fftfreq(ny)[np.newaxis,:]
 
-    df_x = np.fft.ifft2(df_x)
-    df_y = np.fft.ifft2(df_y)
+    df_x = np.fft.ifft2(df_x, axes=(-2,-1))
+    df_y = np.fft.ifft2(df_y, axes=(-2,-1))
 
     return df_x, df_y  # Merge into a single array
 
@@ -154,6 +156,12 @@ class Wavefunction():
     # so I'll have to "shift the mean" somehow.
     def kl_from_initial(self):
         return
+
+    def probability_current(self):
+        return
+
+    def probability_divergence(self):
+        return
     
     def plot_potential(self, *, ax=None):
         r"""
@@ -167,7 +175,7 @@ class Wavefunction():
 
 def compute_reduced_density_matrix(psi, method='matrix'):
     if method=='matrix':
-        rho = _reduced_density_matrix(psi)
+        rho = reduced_density_matrix(psi)
     elif method=='loop':
         rho = trace_density_matrix(psi)
     else:
@@ -192,9 +200,9 @@ def trace_density_matrix(psi):
 
 def reduced_density_matrix(psi, axis=0):
     if axis==0:
-        rho_reduced = psi.T@np.conj(psi)
+        rho_reduced = psi.T@np.conj(psi) # Trace fluctuation (field 2)
     else:
-        rho_reduced = psi@np.conj(psi.T)
+        rho_reduced = psi@np.conj(psi.T) # Trace mean (field 1)
 
     return rho_reduced
 
@@ -211,15 +219,16 @@ def von_neumann_entropy(dens, *, method='eigen'):
 # Write code to compute Tr(rho^n) for replica trick
 # Need matrix_pow command
 def matrix_traces(dens, order):
-    return
+    return np.trace(np.linalg.matrix_power(dens,order))
     
 # Check the ordering of the directions in here
 # Fix normalization
 def probability_current(psi, dx):
     nt = psi.shape[0]
-    nx, ny = psi.shape[-2:]
+    ny, nx = psi.shape[-2:]
     current = np.zeros( psi.shape+(2,) )
 
+    # I think this ordering is wrong
     df_x, df_y = grad_spectral(psi, dx)
     current[...,0] = np.imag(np.conj(psi)*df_x)
     current[...,1] = np.imag(np.conj(psi)*df_y)
@@ -269,12 +278,10 @@ if __name__=="__main__":
     wf = Wavefunction('fields.bin', 'trap.bin', 'xgrid.dat', 'ygrid.dat')
     
     prob = wf.get_prob()
-    # This ordering is for the Fortran mapped to C ordering
-    px = np.sum(prob,axis=-2)
-    py = np.sum(prob,axis=-1)
 
+    # Bug check the identification of x and y here
     dprob = probability_divergence(wf.psi, wf.dx)
-    current = probability_current(wf.psi, wf.dx)
+    current = probability_current(wf.psi, [wf.dy, wf.dx])
 
     # Normalizing to density
     psi = wf.psi * np.sqrt(wf.dx*wf.dy)  # squared since two particles

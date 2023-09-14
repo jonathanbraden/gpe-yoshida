@@ -21,8 +21,8 @@ program Evolve_GPE
   nf = 1 ! Will need to adjust once I add absorbing b.c.s
 
   nLat=256; fld_norm = 2.**0.5
-  !call evolve_vacuum_decay(nLat, 4, fld_norm)
-  call evolve_preheating(256, 2, 2., 0.125*twopi)
+  call evolve_vacuum_decay(nLat, 4, fld_norm, 1.4_dl)
+  !call evolve_preheating(256, 2, 2., 0.125*twopi)
   
 contains
 
@@ -61,13 +61,14 @@ contains
     enddo
   end subroutine test_sho
 
-  subroutine evolve_vacuum_decay(nLat, n_min, fld_norm)
+  subroutine evolve_vacuum_decay(nLat, n_min, fld_norm, lVal)
     integer, intent(in) :: nLat, n_min
     real(dl), intent(in) :: fld_norm
+    real(dl), intent(in) :: lVal
 
     type(Lattice) :: mySim
     integer :: nf
-    real(dl) :: trap_param, grad_ratio ! Move to inputs
+    real(dl) :: grad_ratio ! Move to inputs
     real(dl) :: m2_
     integer :: u
     real(dl) :: dt
@@ -75,20 +76,20 @@ contains
     
     ! Add n_min in here
     nf = 1
+    ! Fix this depending on diagonal or not
     call create_lattice_rectangle(mySim, (/nLat,nLat/),  &
          (/2.**0.5*fld_norm*4.*twopi,2.**0.5*fld_norm*4.*twopi/), nf)
-
-    trap_param = 1.4  ! Make this huge for quadratic ...
-    grad_ratio = 4.*0.35 !0.2_dl !0.5 ! / 10. for mid
-    m2_ = 1.-1._dl/trap_param**2
-    !call initialize_trap(mySim,(/trap_param/),6, fld_norm, grad_ratio)
-    !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
+ 
+    grad_ratio = 4.*0.2 ! 4.*0.35 !0.2_dl !0.5 
+    m2_ = 1.-1._dl/lVal**2
 
     ! Hmm, are these frequencies correct?  Why isn't there a 4?
-    call initialize_trap_old(mySim,(/trap_param/), pot_bec_norm, fld_norm, grad_ratio)
+    call initialize_trap(mySim, (/lVal/), pot_bec_decay, fld_norm, grad_ratio)
     call imprint_gaussian_2d( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
+    !call imprint_gaussian_2d_diag( mySim, (/1./sqrt(m2_), 1./sqrt(m2_+0.25*grad_ratio)/) )
 
-    mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
+    ! Normalize to energy (move to a separate subroutine for reusability
+    !mySim%v_trap = mySim%v_trap - 0.5_dl*(sqrt(m2_) + sqrt(m2_+0.25*grad_ratio))
 
     u = 50
     call write_lattice_data(mySim, u)
