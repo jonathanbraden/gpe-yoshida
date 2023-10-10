@@ -15,15 +15,17 @@ module Equations
   
   implicit none
 
-  integer, parameter :: n_terms = 4
+  integer, parameter :: n_terms = 2
  
 contains
-    
+
+  ! Fix normalization on gradient energy in here
   subroutine initialize_trap(this, params, type)
     type(Lattice), intent(inout) :: this
     real(dl), dimension(:), intent(in) :: params
     integer, intent(in) :: type
 
+    real(dl) :: xp, xm
     integer :: i, j 
 
     if (allocated(this%v_trap)) deallocate(this%v_trap)
@@ -32,20 +34,43 @@ contains
     select case (type)
     case (1)
        this%v_trap = 0._dl
-    case(2)
-       this%v_trap = 0._dl
+    case(2) ! Harmonic trap with gradient
+       do j=1,this%ny
+          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+this%yGrid(j)**2)  &
+               + 0.25_dl*params(1)*(this%yGrid(j)-this%xGrid(:))**2, &
+               32._dl)
+       enddo
     case(3) ! Harmonic trap in both directions
        do j=1,this%ny
-          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+params(1)*this%yGrid(j)**2),32.)
+          this%v_trap(:,j) = min(0.5_dl*(this%xGrid(:)**2+params(1)*this%yGrid(j)**2), 32.)
        enddo
     case(4)  ! Trap only the y-direction
        do j=1,this%ny
-          this%v_trap(:,j) = min(0.5_dl*params(1)*this%yGrid(j)**2,32.)
+          this%v_trap(:,j) = min(0.5_dl*this%yGrid(j)**2,params(1))
        enddo
+    case(5)  ! Drummond potential for QM
+       do j=1,this%ny
+          do i=1,this%nx
+             this%v_trap(i,j) = cos(this%yGrid(j)) + 0.5_dl*params(1)**2*sin(this%yGrid(j))**2 - 1._dl  &
+                  + cos(this%xGrid(i)) + 0.5_dl*params(1)**2*sin(this%xGrid(i))**2 - 1._dl  &
+                  + 0.25_dl*params(2)*(this%xGrid(i)-this%yGrid(j))**2
+          enddo
+       enddo
+    case(6)  ! Drummond with different norm convention (Further fix)
+       do j=1, this%ny
+          do i=1,this%nx
+             this%v_trap(i,j) = 0.5_dl*sin(this%yGrid(j)/params(3))**2 + (cos(this%yGrid(j)/params(3))-1._dl)/params(1)**2 &
+                  + 0.5_dl*sin(this%xGrid(i)/params(3))**2 + (cos(this%xGrid(i)/params(3))-1._dl)/params(1)**2
+
+             this%v_trap(i,j) = params(3)**2*this%v_trap(i,j)
+             this%v_trap(i,j) = this%v_trap(i,j) + 0.25_dl*params(2)*(this%xGrid(i)-this%yGrid(j))**2
+          enddo
+       enddo
+       
     case default
        this%v_trap = 0._dl
     end select
-
+    
     open(unit=99,file='trap.bin',access='stream')
     write(99) this%v_trap
     close(99)
@@ -61,7 +86,7 @@ contains
     close(99)
   end subroutine initialize_trap
 
-  subroutine split_equations(this,dt,term)
+  subroutine split_equations_base(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: term
@@ -76,9 +101,9 @@ contains
     case (4,-4)
        call evolve_gradient_trap_imag(this,dt)
     end select
-  end subroutine split_equations
+  end subroutine split_equations_base
   
-  subroutine split_equations_schrodinger(this,dt,term)
+  subroutine split_equations(this,dt,term)
     type(Lattice), intent(inout) :: this
     real(dl), intent(in) :: dt
     integer, intent(in) :: term
@@ -89,7 +114,7 @@ contains
     case (2)
        call evolve_gradient_trap_imag(this,dt)
     end select
-  end subroutine split_equations_schrodinger
+  end subroutine split_equations
 
   subroutine split_equations_nlse(this,dt,term)
     type(Lattice), intent(inout) :: this

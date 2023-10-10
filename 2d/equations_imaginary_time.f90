@@ -190,7 +190,7 @@ contains
   subroutine renorm_field(this)
     type(Lattice), intent(inout) :: this
 
-    real(dl) :: norm, norm_loc
+    real(dl) :: norm, norm_loc, norm_tot
     integer :: l
 #if defined(PERIODIC)
 #elif defined(INFINITE)
@@ -198,6 +198,8 @@ contains
     integer :: i,j
 #endif
 
+    norm_tot = dble(this%nfld)
+    
     norm = 0._dl
     do l=1,this%nfld
 #if defined(PERIODIC)
@@ -215,7 +217,7 @@ contains
 #endif
        norm = norm + norm_loc
     enddo
-    this%psi(XIND,1:2,1:this%nfld) = this%psi(XIND,1:2,1:this%nfld) / sqrt(norm)
+    this%psi(XIND,1:2,1:this%nfld) = sqrt(norm_tot) * this%psi(XIND,1:2,1:this%nfld) / sqrt(norm)
   end subroutine renorm_field
     
 end module Equations_Imag

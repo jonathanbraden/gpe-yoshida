@@ -16,8 +16,9 @@ program Evolve_GPE
      integer :: nstep, nout_step, out_step_size
   end type TimeParams
   
-  !call run_trapped_background( 0.1, 10., 0.01, 128, 6)
-  call run_imprinted_wave( 0.01, 0.2*twopi, 1.e-4, 0.5_dl, 2, 512, 6 )
+  !call run_trapped_background( 0.1, 1., 0.01, 128, 6)
+  !call run_imprinted_wave( 0.01, 0.25*twopi, 1.e-4, 0.5_dl, 2, 512, 6 )
+  call run_imprinted_wave( 0.01, 0.2*twopi, 1.e-2, 0.5_dl, 4, 1024, 4 )
   
 contains
   

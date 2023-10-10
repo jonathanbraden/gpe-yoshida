@@ -151,6 +151,48 @@ contains
     
   end subroutine gradient_step_w_nu
 
+  subroutine gradient_step_full(this, dtau)
+    type(Lattice), intent(inout) :: this
+    real(dl), intent(in) :: dtau
+
+    integer :: i,l
+    real(dl), dimension(XIND) :: rho2, rho2_cross
+    real(dl), dimension(XIND,1:2,1:this%nfld) :: psi_cur
+    real(dl) :: g_loc, g_cross
+
+    psi_cur(XIND,1:2,:) = this%psi(XIND,1:2,:)
+
+    do i=1,this%nfld
+       rho2 = this%psi(XIND,1,i)**2 + this%psi(XIND,2,i)**2
+       rho2_cross = this%psi(XIND,1,)**2 + this%psi(XIND,2,)**2
+       g_loc = g_self(i)
+       g_cross = 0._dl
+       
+       this%tPair%realSpace = this%psi(XIND,1,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,1,i) = this%psi(XIND,1,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,1,i)  &
+            - g_loc*rho2*this%psi(XIND,1,i)                            &
+            - 0.5_dl*g_cross*rho2_cross*this%psi(XIND,1,i) ) * dtau
+
+       this%tPair%realSpace = this%psi(XIND,2,i)
+#if defined(PERIODIC)
+       call laplacian_1d_wtype(this%tPair, this%dk)
+#elif defined(INFINITE)
+       call laplacian_cheby_1d_mapped(this%tPair)
+#endif
+       this%psi(XIND,2,i) = this%psi(XIND,2,i) + &
+            ( 0.5_dl*this%tPair%realSpace - v_trap*this%psi(XIND,2,i)  &
+            - g_loc*rho2*this%psi(XIND,2,i)                            &
+            - 0.5_dl*g_cross*rho2_cross*this%psi(XIND,2,i) ) * dtau
+    enddo
+    
+  end subroutine gradient_step_full
+  
   ! Fix this for multiple fields
   ! Add required normalization constant as input
   ! Currently normalized to number of fields (for simplifying definitions of g, etc

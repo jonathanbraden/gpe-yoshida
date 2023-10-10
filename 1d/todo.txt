@@ -1,0 +1,14 @@
+To Do List:
+
+Conceptual Stuff:
+ - Newton approach for finding "vacuum" state (may be needed if we start in false vacuum)
+
+Technical Stuff:
+ - Improve the switch between Fourier and Chebyshev expansions (using generic functions, e.g.)
+ - Include Lobatto grid in Fast Chebyshev transforms
+ - In initialization subroutines, return the chemical potential for the initial state (analytic version when possible).
+ - Modularise the Yoshida calculation so only a coefficient matrix is stepped through.  This greatly reduces the amount of code and will make maintenance much easier.
+ - Fix normalization on chemical potential to properly account for norm of wavefunction
+ - Change norm of wavefunction in ground state finder
+ - Add the nu term to the energy calculation
+ - Add symmetric basis functions for finding the ground state

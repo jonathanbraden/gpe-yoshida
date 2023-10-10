@@ -1,0 +1,65 @@
+\documentclass{revtex4}
+\usepackage{amsmath,amssymb}
+
+\newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
+
+\begin{document}
+Here we define the set of units used in our numerical code and show how the dimensionless equations of motion are adjusted as we change the units.
+
+For simplicity, we will consider the equation of motion for a single BEC (i.e.\ the nonlinear Schrodinger equation).  The derivations are essentially identical in the multispecies case, so we do not produce them here in the interests of simplicity.
+
+Our starting point is the nonlinear Schrodinger equation describing the evolution of a BEC condensate in the dilute gas limit
+\begin{equation}
+  i\hbar\dot{\psi} = -\frac{\hbar^2}{2m}\nabla^2\psi + V\psi + \frac{4\pi\hbar^2 a_s}{m}(N-1)\abs{\psi}^2 \psi \, .
+\end{equation}
+We assume the reader is familiar with the derivation of this approximation.
+Here $N$ is the number of particles, $m$ is the particle mass, and $a_s$ is the S-wave scattering length for $2\to 2$ particle scattering, and $V$ is the external trapping potential.  For now, this equation is for a three-dimensional condensate.
+The condensate wavefunction is normalized as
+\begin{equation}
+  \int d^3x\abs{\psi}^2 = 1 \, ,
+\end{equation}
+so $\psi$ has units of $L^{-3}$ (i.e.\ it is a density).
+With this normalization, $N\abs{\psi}^2$ is interpreted as the local particle number density.
+A common alternative notation is to use
+\begin{equation}
+  g = \frac{4\pi\hbar^2a_s}{m} \, .
+\end{equation}
+The interpretation of $g$ in this case comes from approximating the interparticle interaction potential
+\begin{equation}
+  V({\bf r}-{\bf r'}) \approx g\delta({\bf r}-{\bf r'}) \, .
+\end{equation}
+Dusting off our undergraduate scattering theory, we know that the corresponding S-wave scattering length is related to $g$ in the Born approximation as
+\begin{equation}
+  a_s = \frac{m}{4\pi\hbar^2}\int V({\bf r}) d^3r
+\end{equation}
+in three dimensions, thus producing the relationship between $g$ and $a_s$.
+
+We now want to put this equation into dimensionless form.
+We introduce a characteristic frequency $\omega_p$, inverse length $\kappa_p$ and wavefunction scale $\sqrt{\Lambda}$ and define
+\begin{equation}
+  \bar{t} = \omega_p t \qquad \bar{x} = \kappa_p x \qquad \bar{\psi} = \frac{\psi}{\sqrt{\Lambda}} \, .
+\end{equation}
+where $\bar{\cdot}$ indicates a dimensionless variable.
+The equation of motion therefore becomes
+\begin{equation}
+  i\frac{\partial\bar{\psi}}{\partial\bar{t}} = -\frac{1}{2}\frac{(\hbar\kappa_p)^2}{m\hbar\omega_p}\bar{\nabla}^2\bar{\psi} + \frac{V}{\hbar\omega_p}\bar{\psi} + \frac{4\pi\hbar^2 a_s}{\hbar\omega_p m}(N-1)\Lambda^2\abs{\bar{\psi}}^2\bar{\psi} \, ,
+\end{equation}
+with normalization
+\begin{equation}  
+  \int d^3x \abs{\bar{\psi}}^2 = \Lambda^{-1} \, .
+\end{equation}
+
+We therefore introduce dimensionless parameters
+\begin{equation}
+  \alpha = \frac{\hbar^2\kappa_p^2}{m\hbar\omega_p} \qquad \bar{V} = \frac{V}{\hbar\omega_p} \qquad \bar{g} = \frac{4\pi\hbar^2a_s}{\hbar\omega_p m}(N-1)\Lambda^2
+\end{equation}
+and rewrite
+\begin{equation}
+    i\frac{\partial\bar{\psi}}{\partial\bar{t}} = -\frac{\alpha}{2}\bar{\nabla}^2\bar{\psi} + \bar{V}\bar{\psi} + \bar{g}\abs{\bar{\psi}}^2\bar{\psi} \, .
+\end{equation}
+As a quick sanity check, it is straightforward to see that all of our parameters are indeed dimensionless.
+
+\section{Reduction to Lower Dimensions}
+The parameters above are defined in three-dimensions.  While the dimensionality is irrelevant for the ``linear'' parameters (i.e.\ everything by $\bar{g}$), the interpretation of $\bar{g}$ is dimension dependent, as should be clear from the dependence of the dimension of $\Lambda$ on the number of spatial dimensions.
+
+\end{document}

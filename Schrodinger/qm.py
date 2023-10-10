@@ -76,7 +76,6 @@ class Wavefunction():
 
         self.dx, self.dy = self.xv[1]-self.xv[0], self.yv[1]-self.yv[0]
         
-
     def get_prob(self):
         return np.abs(self.psi)**2*self.dx*self.dy
     
@@ -155,9 +154,6 @@ class Wavefunction():
     # Write this.  Makes minimal sense if the mean is oscillating
     # so I'll have to "shift the mean" somehow.
     def kl_from_initial(self):
-        return
-
-    def probability_current(self):
         return
 
     def probability_divergence(self):
